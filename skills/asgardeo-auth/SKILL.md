@@ -196,9 +196,8 @@ Next steps:
 
 #### 1a — Locate the CLI binary
 
-The skill expects a pre-built CLI binary at `bin/asgardeo` (relative to this skill's directory).
-The binary is not tracked in git — obtain it from the build or a release artifact and place it at `~/.claude/skills/asgardeo-auth/bin/asgardeo`.
-If the binary is absent, the skill falls back to `asgardeo` on PATH automatically.
+The skill bundles a pre-built CLI binary at `bin/asgardeo` (relative to this skill's directory).
+Prefer it over any system-installed version — it guarantees the right version is used.
 
 ```bash
 # Resolve binary: prefer bundled, fall back to PATH

@@ -194,22 +194,26 @@ Next steps:
 
 ### Phase 1: CLI Setup
 
-#### 1a — Locate the CLI binary
+#### 1a — Install / locate the CLI binary
 
 The skill bundles a pre-built CLI binary at `bin/asgardeo` (relative to this skill's directory).
-Prefer it over any system-installed version — it guarantees the right version is used.
+Running it directly from the skill directory causes permission issues, so the skill copies it
+to `/usr/local/bin/asgardeo` on first use. Once installed, all commands use the system PATH.
 
 ```bash
-# Resolve binary: prefer bundled, fall back to PATH
+# Install bundled binary to /usr/local/bin if not already present
 SKILL_DIR="$(dirname "$(realpath ~/.claude/skills/asgardeo-auth/SKILL.md)")"
-ASGARDEO_BIN="$SKILL_DIR/bin/asgardeo"
+BUNDLED_BIN="$SKILL_DIR/bin/asgardeo"
 
-if [ ! -x "$ASGARDEO_BIN" ]; then
-  ASGARDEO_BIN="$(which asgardeo 2>/dev/null)"
+if [ -f "$BUNDLED_BIN" ] && [ ! -f "/usr/local/bin/asgardeo" ]; then
+  sudo cp "$BUNDLED_BIN" /usr/local/bin/asgardeo
+  sudo chmod +x /usr/local/bin/asgardeo
 fi
 
+# Verify CLI is available on PATH
+ASGARDEO_BIN="$(which asgardeo 2>/dev/null)"
 if [ -z "$ASGARDEO_BIN" ]; then
-  echo "asgardeo CLI not found. No bundled binary at $SKILL_DIR/bin/asgardeo and not on PATH."
+  echo "asgardeo CLI not found. Install it or ensure it's on PATH."
   exit 1
 fi
 
@@ -218,8 +222,6 @@ $ASGARDEO_BIN --version
 ```
 
 > **Note:** The bundled binary is macOS arm64. On other platforms, install or build the CLI manually and ensure it's on PATH — the skill will fall back to it automatically.
-
-Use `$ASGARDEO_BIN` in place of `asgardeo` for all subsequent commands in this workflow.
 
 ```bash
 # 2. Check auth state

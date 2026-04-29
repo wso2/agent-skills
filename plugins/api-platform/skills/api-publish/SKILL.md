@@ -1,5 +1,5 @@
 ---
-name: api-platform
+name: api-publish
 description: >
   Use this skill to set up the WSO2 API Platform Gateway, expose backend services
   as managed APIs, and manage APIs with the ap CLI. Trigger whenever the user

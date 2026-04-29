@@ -7,7 +7,7 @@ Handles three distinct workflows — always confirm with the user which they nee
 2. **Assess** — run Spectral + LLM checks across AI readiness, security, and design dimensions
 3. **Fix** — apply targeted fixes to issues found in an existing spec
 
-## api-platform Skill
+## api-publish Skill
 
 Three sequential phases:
 1. **Setup** — install ap CLI, start Docker gateway, connect and verify health

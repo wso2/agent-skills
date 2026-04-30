@@ -6,9 +6,9 @@ Fetch these when you need command syntax, flags, or installation steps — they 
 
 | Document | Raw URL |
 |----------|---------|
-| Quick Start Guide | `https://raw.githubusercontent.com/wso2/api-platform/main/docs/cli/quick-start-guide.md` |
-| Full CLI Reference | `https://raw.githubusercontent.com/wso2/api-platform/main/docs/cli/reference.md` |
-| Customizing Gateway Policies | `https://raw.githubusercontent.com/wso2/api-platform/main/docs/cli/customizing-gateway-policies.md` |
+| Quick Start Guide | `https://raw.githubusercontent.com/wso2/api-platform/ap-docs-0.8.x/docs/cli/quick-start-guide.md` |
+| Full CLI Reference | `https://raw.githubusercontent.com/wso2/api-platform/ap-docs-0.8.x/docs/cli/reference.md` |
+| Customizing Gateway Policies | `https://raw.githubusercontent.com/wso2/api-platform/ap-docs-0.8.x/docs/cli/customizing-gateway-policies.md` |
 
 The CLI reference covers all 15 gateway sub-commands (add, list, use, current, health, remove, apply, api, mcp, image build, etc.), short flag aliases, and authentication setup.
 
@@ -33,6 +33,17 @@ ap gateway api get
 ap gateway api delete
 ```
 
+### Operations the CLI does NOT cover — call the REST API directly
+
+Don't run `ap gateway --help` / `ap gateway rest-api --help` looking for these; they aren't there. Call the management REST API on port 9090 (basic auth, default `admin:admin`).
+
+| Operation | Endpoint | SKILL.md section |
+|-----------|----------|------------------|
+| Generate / list / regenerate / update / delete API keys (for `api-key-auth`) | `POST/GET/PUT/DELETE /api/management/v0.9/rest-apis/{id}/api-keys[...]` | "Post-deployment steps for `api-key-auth`" |
+| JWT IDP configuration, other per-policy runtime config | various `/api/management/v0.9/rest-apis/{id}/...` | "Post-deployment steps for other policies" |
+
+Full reference: `https://raw.githubusercontent.com/wso2/api-platform/gw-docs-1.1.x/docs/rest-apis/gateway/rest-api-management.md` (1000+ lines; jump to anchors).
+
 ---
 
 ## Supplements (not in official docs)
@@ -41,8 +52,8 @@ ap gateway api delete
 
 | Port | Purpose |
 |------|---------|
-| 9090 | Controller admin API — `ap` CLI and API deployments |
-| 9094 | Health check endpoint |
+| 9090 | Gateway-Controller REST API — `--server` flag; REST API management (`/api/management/v0.9/...`) |
+| 9094 | Gateway-Controller Admin — `--admin-server` flag; controller health (`/api/admin/v0.9/health`); backs `ap gateway health` |
 | 8080 | Runtime HTTP — app traffic |
 | 8443 | Runtime HTTPS |
 

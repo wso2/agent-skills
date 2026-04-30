@@ -29,9 +29,14 @@ Read these when needed — don't load all of them upfront:
 
 ## External docs (fetch when needed)
 
-- **Gateway docs**: `https://github.com/wso2/api-platform/tree/main/docs/gateway` — covers Kubernetes, observability, resiliency, analytics, policies
-- **Gateway REST API docs**: `https://github.com/wso2/api-platform/tree/main/docs/rest-apis/gateway` — covers all admin REST API endpoints (auth, API key management, secrets, certificates)
-- **Individual REST API doc files**: `https://raw.githubusercontent.com/wso2/api-platform/main/docs/rest-apis/gateway/<filename>.md` — fetch the specific file when you need endpoint details (e.g. `rest-api-management.md`, `authentication.md`, `secrets-management.md`)
+Docs live on two release-line branches in `wso2/api-platform`. Use these — don't fall back to `main`:
+- Gateway and REST-API docs → `gw-docs-1.1.x` (gateway 1.1.x release line)
+- CLI docs → `ap-docs-0.8.x` (ap CLI 0.8.x release line)
+
+- **Gateway docs**: `https://github.com/wso2/api-platform/tree/gw-docs-1.1.x/docs/gateway` — covers Kubernetes, observability, resiliency, analytics, policies, immutable gateway, policy languages and runtimes
+- **Gateway REST API docs**: `https://github.com/wso2/api-platform/tree/gw-docs-1.1.x/docs/rest-apis/gateway` — covers all admin REST API endpoints (auth, API key management, secrets, certificates)
+- **Individual REST API doc files**: `https://raw.githubusercontent.com/wso2/api-platform/gw-docs-1.1.x/docs/rest-apis/gateway/<filename>.md` — fetch the specific file when you need endpoint details (e.g. `rest-api-management.md`, `authentication.md`, `secrets-management.md`)
+- **CLI docs**: `https://github.com/wso2/api-platform/tree/ap-docs-0.8.x/docs/cli` — `reference.md`, `quick-start-guide.md`, `customizing-gateway-policies.md`
 
 ---
 
@@ -72,7 +77,7 @@ If `ap` is not found: ask the user whether they want to install it themselves or
 > "`ap` CLI isn't installed. Would you like me to install it for you, or would you prefer to do it yourself?"
 
 **If they want to do it themselves (Path A):**
-Point them to https://github.com/wso2/api-platform/releases/tag/ap%2Fv0.7.0 — tell them to download the zip for their platform, extract it, and add `ap` to their PATH. Wait for them to confirm, then verify with `ap --help` before continuing.
+Point them to https://github.com/wso2/api-platform/releases/tag/ap%2Fv0.8.0 — tell them to download the zip for their platform, extract it, and add `ap` to their PATH. Wait for them to confirm, then verify with `ap --help` before continuing.
 
 **If they want you to install it (Path B):**
 Detect the platform, download to `~/Downloads`, extract, move only the binary to `~/.local/bin`, clean up, and add to PATH:
@@ -84,7 +89,7 @@ ARCH=$(uname -m)
 
 mkdir -p "$HOME/.local/bin"
 curl -Lo "$HOME/Downloads/ap.zip" \
-  "https://github.com/wso2/api-platform/releases/download/ap/v0.7.0/ap-${OS}-${ARCH}-v0.7.0.zip"
+  "https://github.com/wso2/api-platform/releases/download/ap/v0.8.0/ap-${OS}-${ARCH}-v0.8.0.zip"
 unzip -o "$HOME/Downloads/ap.zip" -d "$HOME/Downloads/ap-install"
 AP_BIN=$(find "$HOME/Downloads/ap-install" -type f -name "ap" | head -1)
 mv "$AP_BIN" "$HOME/.local/bin/ap"
@@ -118,12 +123,12 @@ export PATH="$HOME/.local/bin:$PATH"
 
 **Step 2 — Detect existing gateway**
 
-Silently check if the API platform is running:
+Silently check if the gateway controller is running:
 ```bash
-curl -s --max-time 3 http://localhost:9094/health
+curl -s --max-time 3 http://localhost:9094/api/admin/v0.9/health
 ```
 
-**If the health endpoint responds `{"status":"healthy"}` (platform is up):**
+**If the controller responds healthy (platform is up):**
 Run `ap gateway list` to check what gateways are registered.
 
 - **Gateways are listed:** Tell the user what was found and ask: "I found gateways already configured. Would you like to use one of these, or add a new gateway?"
@@ -137,7 +142,7 @@ Ask: "Are you connecting to an existing gateway (e.g. a team or cloud server), o
 - If remote: ask for the server URL and credentials, then skip Step 3 and go to Step 4
 - If fresh local install: continue to Step 3
 
-**Step 3 — Check Docker and start the gateway (local only)**
+**Step 3 — Check Docker and set up the gateway (local only)**
 
 ```bash
 docker --version
@@ -158,40 +163,62 @@ If neither works, stop and tell the user: "Docker Compose is required. Please in
 
 Use `$COMPOSE` for all subsequent compose commands.
 
-If the gateway needs a fresh install:
+Choose the extraction directory. We don't install the gateway into the user's working directory — we extract the release zip to a stable, versioned location under `$HOME` so successive runs find it and the user's project tree stays clean:
+
 ```bash
-curl -LO https://github.com/wso2/api-platform/releases/download/gateway/v1.0.0/wso2apip-api-gateway-1.0.0.zip
-unzip wso2apip-api-gateway-1.0.0.zip
-cd wso2apip-api-gateway-1.0.0/
+GW_VERSION="1.1.0"
+GW_PARENT="$HOME/wso2-api-gateway"
+GW_DIR="$GW_PARENT/v$GW_VERSION"
+```
+
+**If `$GW_DIR` already exists:** don't prompt. Tell the user *"Found an existing gateway extraction at `~/wso2-api-gateway/v1.1.0/` — reusing it. If you want a fresh copy, ask me and I'll remove that directory and re-extract."* Then skip the download/unzip block and go straight to the compose-up block.
+
+**Download and extract** (skip if reusing an existing extraction):
+```bash
+mkdir -p "$GW_PARENT"
+curl -L -o "$HOME/Downloads/wso2apip-api-gateway-$GW_VERSION.zip" \
+  "https://github.com/wso2/api-platform/releases/download/gateway/v$GW_VERSION/wso2apip-api-gateway-$GW_VERSION.zip"
+unzip -q "$HOME/Downloads/wso2apip-api-gateway-$GW_VERSION.zip" -d "$GW_PARENT"
+rm "$HOME/Downloads/wso2apip-api-gateway-$GW_VERSION.zip"
+mv "$GW_PARENT/wso2apip-api-gateway-$GW_VERSION" "$GW_DIR"
+```
+
+**Bring up the stack** (always run, whether reusing or freshly extracted — `compose up -d` is idempotent). The `cd` is required because the compose file uses relative paths for its volume mounts:
+```bash
+cd "$GW_DIR"
 $COMPOSE -p gateway up -d
 ```
 
-Wait a few seconds, then verify: `curl -s http://localhost:9094/health`
+Tell the user: *"Gateway extracted at `~/wso2-api-gateway/v1.1.0/`. The Docker Compose project name is `gateway` — to stop it later: `cd ~/wso2-api-gateway/v1.1.0 && docker compose -p gateway down`."*
+
+Wait a few seconds, then verify: `curl -s http://localhost:9094/api/admin/v0.9/health`
 
 **Step 4 — Connect the ap CLI**
 
-For a local Docker setup with default credentials (admin/admin):
-```bash
-ap gateway add --display-name dev --server http://localhost:9090 --auth basic --username admin --password admin
+Format:
+```
+ap gateway add --display-name <name> --server <server-url> --admin-server <admin-server-url> [--auth <none|basic|bearer>]
 ```
 
-For a remote or custom-credential server, ask the user for the server URL and credentials before running this.
+`--admin-server` is required — without it, `ap gateway health` in Step 5 fails.
 
-**Step 5 — Verify health**
+For a local Docker setup with default credentials (admin/admin):
+```bash
+ap gateway add --display-name dev \
+  --server http://localhost:9090 \
+  --admin-server http://localhost:9094 \
+  --auth basic --username admin --password admin
+```
+
+For a remote or custom-credential server, ask the user for both the `--server` and `--admin-server` URLs (and credentials) before running.
+
+**Step 5 — Verify gateway health**
 
 ```bash
 ap gateway health
 ```
 
-On gateway v1.0.0-rc.2, `ap gateway health` hits port 9090 and may return a 404 — this is a known limitation of this CLI version, not a sign the gateway is down. If it fails, fall back to the direct health endpoint:
-
-```bash
-curl -s http://localhost:9094/health
-```
-
-If either returns `{"status":"healthy"}`, report ✓ and move to Phase 2.
-
-If both fail: check that Docker containers are running (`$COMPOSE -p gateway ps`) and wait a moment — the gateway can take 10–15 seconds to become ready after `$COMPOSE up`.
+If healthy, report ✓ and move to Phase 2.
 
 ---
 
@@ -235,7 +262,7 @@ Read `references/docker-networking.md`. The upstream URL in the YAML cannot use 
 **Generate the RestApi YAML:**
 
 Read `references/api-yaml-examples.md` for examples. Key rules:
-- `metadata.name` must be unique, lowercase, hyphens allowed (e.g., `my-service-v1-0`)
+- `metadata.name` must be unique, lowercase alphanumerics + `-` + `.` (e.g., `my-service-v1.0`)
 - `context` must use `$version` placeholder (e.g., `/myservice/$version`)
 - `upstream.main.url` must use the real host IP, not `localhost`
 - **Check for a backend base path before setting `upstream.main.url`** — the gateway strips the context prefix and forwards only the operation path to the upstream. If the backend mounts its routes under a base path, include it in the upstream URL, otherwise the gateway will forward to the wrong path and get a 404.
@@ -317,50 +344,53 @@ What would you like to configure?
 
 **Add headers (set-headers policy)** — read `references/api-yaml-examples.md` for the set-headers example. The confirmed policy name is `set-headers` version `v1`.
 
-**Authentication, rate limiting, custom policies** — policies are documented in a separate repo (`wso2/gateway-controllers`). To find available policies and their parameters:
+**Authentication, rate limiting, guardrails, transforms, interception** — fetch the **PolicyHub catalog** and follow the link to the policy you need:
 
-1. **List all policies:**
-   `https://api.github.com/repos/wso2/gateway-controllers/contents/docs`
+`https://raw.githubusercontent.com/wso2/gateway-controllers/main/docs/README.md`
 
-2. **Get metadata for a specific policy** (name, version, params):
-   `https://raw.githubusercontent.com/wso2/gateway-controllers/main/docs/<policy-name>/v1.0/metadata.json`
+This is an auto-generated table of every available policy with a one-line description and a **direct, resolved link** to its markdown reference (params, YAML examples, defaults). The catalog is the source of truth — don't crawl `/contents/docs/<policy>/<version>/docs/...` to discover filenames. They're inconsistent (`api-key-auth/v1.0/docs/apikey-authentication.md` drops a hyphen; `regex-guardrail/v1.0/docs/regex.md` is truncated) and the catalog has them resolved.
 
-3. **Read the full policy doc:**
-   First list the docs dir to find the exact filename:
-   `https://api.github.com/repos/wso2/gateway-controllers/contents/docs/<policy-name>/v1.0/docs`
-   Then fetch the markdown file from the result.
+Workflow:
+1. Fetch the catalog above. Find the row for what the user wants.
+2. Follow the link in that row to the policy's markdown. Use its YAML and `params` to write the policy block in the RestApi spec.
+3. The policy version is the `vX.Y` segment in the link path (e.g., `/api-key-auth/v1.0/...`). Use that as `version:` in your YAML.
 
-Fetch the metadata and doc before writing YAML — never guess policy names or versions. Common policies: `api-key-auth`, `jwt-auth`, `basic-auth`, `basic-ratelimit`, `cors`, `set-headers`, `remove-headers`, `request-rewrite`.
+For the meta-question of how policies attach to a RestApi (`build.yaml` shape) or how to author a custom policy in Go or Python, see the 1.1 docs — only fetch these if the user is building their own policy, not when applying an existing one:
+- Policy customization model: `https://raw.githubusercontent.com/wso2/api-platform/ap-docs-0.8.x/docs/cli/customizing-gateway-policies.md`
+- Runtime support: `https://raw.githubusercontent.com/wso2/api-platform/gw-docs-1.1.x/docs/gateway/policy-languages-and-runtimes.md`
 
-For policies that require post-deployment steps (e.g. `api-key-auth` requires generating a key, `jwt-auth` may require configuring an IDP), fetch the relevant REST API management doc:
-`https://raw.githubusercontent.com/wso2/api-platform/main/docs/rest-apis/gateway/rest-api-management.md`
+### Post-deployment steps for `api-key-auth`
 
----
+There is **no `ap` CLI command** for API key management — don't waste time on `ap gateway --help` or `ap gateway rest-api --help`. Call the management REST API on port 9090 directly.
 
-## Critical CLI facts
-
-### REST API subcommand — use `rest-api`, never `api`
-
-The GitHub CLI docs have an older version using `ap gateway api` — this is wrong and will fail. Always use:
+Get the API's `id` first (it's the `metadata.name` of the deployed RestApi, e.g. `reading-list-api-v1.0`), then:
 
 ```bash
-# Correct:
-ap gateway rest-api list
-ap gateway rest-api get --display-name <name> --version <v>
-ap gateway rest-api get --id <id>
-ap gateway rest-api delete --id <id>
-
-# Wrong (will fail):
-ap gateway api list
-ap gateway api get
-ap gateway api delete
+# Generate a new API key
+curl -X POST http://localhost:9090/api/management/v0.9/rest-apis/<id>/api-keys \
+  -u admin:admin \
+  -H 'Content-Type: application/json' \
+  -d '{"name": "<key-name>"}'
 ```
+
+The response contains an `apiKey.apiKey` field — a string starting with `apip_`. Hand it to the user; the gateway won't show it again. Callers send it as `Authorization: Bearer <key>` (or whatever the `api-key-auth` policy params specify).
+
+Other API-key operations (list / regenerate / update / delete) follow the same `/{id}/api-keys[...]` pattern — section anchors in the source doc:
+- List: `#get-the-list-of-api-keys-for-an-api`
+- Regenerate: `#regenerate-an-api-key`
+- Update API key with new regenerated value: `#update-an-api-key-with-a-new-regenerated-value`
+- Revoke API key: `#revoke-an-api-key`
+
+Source (1000+ lines — jump to the anchor, don't read top-to-bottom):
+`https://raw.githubusercontent.com/wso2/api-platform/gw-docs-1.1.x/docs/rest-apis/gateway/rest-api-management.md`
+
+---
 
 ### Gateway ports (local Docker)
 | Port | Purpose |
 |------|---------|
-| 9090 | Controller admin API — ap CLI and API deployments go here |
-| 9094 | Health check endpoint |
+| 9090 | Gateway-Controller REST API — `ap gateway` `--server`, REST API deployments (`POST /api/management/v0.9/rest-apis`) |
+| 9094 | Gateway-Controller Admin — `ap gateway` `--admin-server`, controller health (`GET /api/admin/v0.9/health`); backs `ap gateway health` |
 | 8080 | Runtime HTTP — app traffic goes here |
 | 8443 | Runtime HTTPS |
 

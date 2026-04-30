@@ -2,7 +2,7 @@
 
 ## Naming Rules
 
-- `metadata.name` must be **unique**, **lowercase**, hyphens allowed — e.g., `restaurant-api-v1-0`
+- `metadata.name` must be **unique**: lowercase alphanumerics, `-`, and `.`, starting and ending with an alphanumeric. Dots are fine — the official quick-start and every PolicyHub example use `<name>-v1.0` (e.g. `reading-list-api-v1.0`, `weather-api-v1.0`). Match that convention so policy-doc snippets paste in cleanly.
 - `spec.version` is a string — use `v1.0`, `v2`, etc.
 - `spec.context` must include the `$version` placeholder — the gateway substitutes it with the version string so the URL becomes `/myapi/v1.0/...`
 - `upstream.main.url` must point to the real backend host — see `docker-networking.md` for why `localhost` won't work
@@ -17,7 +17,7 @@ The simplest possible deployment — no policies, single endpoint, fully public.
 apiVersion: gateway.api-platform.wso2.com/v1alpha1
 kind: RestApi
 metadata:
-  name: users-api-v1-0          # Unique ID for this resource. Lowercase + hyphens only.
+  name: users-api-v1.0          # Unique ID for this resource. Lowercase, hyphens, dots OK.
 spec:
   displayName: Users API         # Human-readable name shown in listings
   version: v1.0                  # Version string — also appears in the URL
@@ -46,7 +46,7 @@ Uses the `set-headers` policy (confirmed name: `set-headers`, version `v1`) to a
 apiVersion: gateway.api-platform.wso2.com/v1alpha1
 kind: RestApi
 metadata:
-  name: weather-api-v1-0
+  name: weather-api-v1.0
 spec:
   displayName: Weather API
   version: v1.0
@@ -85,7 +85,7 @@ To add only request headers (no response headers), omit the `response` block ent
 apiVersion: gateway.api-platform.wso2.com/v1alpha1
 kind: RestApi
 metadata:
-  name: products-api-v1-0
+  name: products-api-v1.0
 spec:
   displayName: Products API
   version: v1.0
@@ -116,7 +116,7 @@ Path parameters use curly brace syntax `{param}` — same as OpenAPI.
 apiVersion: gateway.api-platform.wso2.com/v1alpha1
 kind: RestApi
 metadata:
-  name: orders-api-v1-0
+  name: orders-api-v1.0
 spec:
   displayName: Orders API
   version: v1.0
@@ -164,6 +164,6 @@ Re-applying with the same `metadata.name` updates the existing resource.
 | Mistake | Correct approach |
 |---------|-----------------|
 | `upstream.url: http://localhost:8081` | Use actual host IP — see docker-networking.md |
-| `metadata.name: My Orders API` | Must be lowercase, no spaces: `my-orders-api` |
+| `metadata.name: My Orders API` | Must be lowercase, no spaces: `my-orders-api-v1.0` |
 | `context: /orders/v1.0` | Must use placeholder: `context: /orders/$version` |
 | Guessing a policy name | Only `set-headers v1` is confirmed. For others, check the Policy Hub or ask the user. |

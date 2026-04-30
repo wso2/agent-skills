@@ -200,10 +200,11 @@ The skill bundles a pre-built CLI binary at `bin/asgardeo` (relative to this ski
 Running it directly from the skill directory causes permission issues, so the skill copies it
 to `/usr/local/bin/asgardeo` on first use. Once installed, all commands use the system PATH.
 
+Substitute `<absolute-path-to-skill>` with the absolute directory path of this `SKILL.md` file.
+
 ```bash
 # Install bundled binary to /usr/local/bin if not already present
-SKILL_DIR="$(dirname "$(realpath ~/.claude/skills/asgardeo-auth/SKILL.md)")"
-BUNDLED_BIN="$SKILL_DIR/bin/asgardeo"
+BUNDLED_BIN="<absolute-path-to-skill>/bin/asgardeo"
 
 if [ -f "$BUNDLED_BIN" ] && [ ! -f "/usr/local/bin/asgardeo" ]; then
   sudo cp "$BUNDLED_BIN" /usr/local/bin/asgardeo

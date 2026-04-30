@@ -1,0 +1,13 @@
+{
+  "name": "identity-platform",
+  "version": "0.1.0",
+  "description": "Skills for the WSO2 Identity Platform — set up Asgardeo authentication end-to-end (CLI org configuration, OAuth2 app registration, SDK installation, and minimal login/logout integration) for React, Next.js, Vue, and Express apps.",
+  "author": {
+    "name": "WSO2",
+    "url": "https://wso2.com"
+  },
+  "homepage": "https://github.com/wso2/agent-skills",
+  "repository": "https://github.com/wso2/agent-skills",
+  "license": "Apache-2.0",
+  "keywords": ["identity-platform", "asgardeo", "oauth2", "oidc", "wso2", "authentication", "sso"]
+}

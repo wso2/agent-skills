@@ -53,7 +53,7 @@ Example when the user wants to expose a service:
 I'll set up the WSO2 API Platform Gateway and expose your service.
 Here's what I'll do:
 ✦ Install the ap CLI
-✦ Install and start the gateway
+✦ Confirm which gateway to use (set one up, or connect to one you have) 
 ✦ Connect the CLI to the gateway
 ✦ Deploy your API
 ✦ Test it end to end
@@ -64,8 +64,9 @@ Example when the user just wants the gateway running:
 I'll get the WSO2 API Platform Gateway running for you.
 Here's what I'll do:
 ✦ Install the ap CLI
-✦ Install and start the gateway
-✦ Connect and verify everything is healthy
+✦ Confirm which gateway to use (set one up, or connect to one you have) 
+✦ Connect the CLI to the gateway
+✦ Verify everything is healthy
 ```
 
 Then work through these steps, running commands and reporting results:
@@ -107,26 +108,71 @@ If this succeeds, continue to Step 2.
 
 If `ap --help` fails right after a fresh install, the new PATH line in the rc file isn't loaded in the current shell. Tell the user: "`~/.local/bin` isn't on your current PATH yet. Please run `source ~/.zshrc` (or `source ~/.bashrc`), or open a new terminal, then confirm here." Wait for confirmation, then re-run `ap --help` before continuing.
 
-**Step 2 — Detect existing gateway**
+**Step 2 — Find or set up the gateway**
 
-Silently check if the gateway controller is running:
+First, check what the CLI already knows about — the user may have registered a gateway in a prior session:
+
+```bash
+ap gateway list
+```
+
+**If the list shows one or more gateways:**
+
+Show the user the list (display-name and server URL is enough), then ask:
+
+> "I see these gateways are already registered with the CLI: <list>. Want to connect to one of these, or set up / connect to a different one?"
+
+**Stop and wait for the user's reply.** Do not run `ap gateway use`, `ap gateway health`, or any other command until they answer. This applies even when only one gateway is registered — don't auto-select; one entry is still a choice.
+
+**If the user picks one:** we already have its URL and auth from the CLI; just verify it's healthy:
+```bash
+ap gateway use --display-name <picked>
+ap gateway health
+```
+- Healthy → skip Steps 3 and 4 entirely; go straight to Step 5 / Phase 2.
+- Unhealthy → diagnose before falling through. Likely causes: compose stack stopped (`docker compose -p gateway ps`), URL changed, server moved. Surface the diagnosis to the user and offer to re-set-it-up or pick a different option — don't silently treat this as "no gateway".
+
+**If the user wants a different one:** fall through to the existing-vs-fresh question below.
+
+**If `ap gateway list` reports no gateways:** fall through to the existing-vs-fresh question below.
+
+---
+
+Ask the user (only when the registered-list branch above didn't resolve):
+
+> "Do you already have an API platform gateway you want to connect to, or should I set up a fresh local gateway?"
+
+Branch on the answer.
+
+**A. Existing gateway**
+
+Ask for, in order:
+1. **Management URL** (`--server`, e.g. `https://team-gw.example.com:9090` or `http://localhost:9091`)
+2. **Admin URL** (`--admin-server`, e.g. `https://team-gw.example.com:9094`)
+3. **Display-name** to register it under. Default `dev` for a local custom-port instance; suggest something contextual like `team` or `prod` if the URL is non-local.
+4. **Auth method**: `none` / `basic` / `bearer`. If `basic` or `bearer`, ask the user how they'd like to provide credentials — two options:
+   - **Env vars (preferred)** — ask the user to export `WSO2AP_GW_USERNAME` + `WSO2AP_GW_PASSWORD` for basic, or `WSO2AP_GW_TOKEN` for bearer, before continuing. The CLI reads them directly and they take precedence over stored config. Keeps creds out of the chat transcript.
+   - **Inline** — user shares them with you in chat; you pass them as `--username` / `--password` (basic) or `--token` (bearer) on the `ap gateway add` command.
+
+Verify the admin URL is reachable before adding the gateway:
+
+```bash
+curl -s --max-time 5 <admin-url>/api/admin/v0.9/health
+```
+
+- **Healthy** → skip Step 3 (no local install needed), go straight to Step 4 with the user's URLs and credentials.
+- **Unreachable** → tell the user the admin URL didn't respond and ask them to check the URL / VPN / firewall. Don't proceed to Step 4 until they confirm a working URL.
+
+**B. Fresh local gateway**
+
+Silently probe in case the user already has one running and forgot:
+
 ```bash
 curl -s --max-time 3 http://localhost:9094/api/admin/v0.9/health
 ```
 
-**If the controller responds healthy (platform is up):**
-Run `ap gateway list` to check what gateways are registered.
-
-- **Gateways are listed:** Tell the user what was found and ask: "I found gateways already configured. Would you like to use one of these, or add a new gateway?"
-  - Use existing → skip Steps 3 & 4, go to Step 5
-  - Add new → go to Step 4
-
-- **Returns "No gateways configured":** Tell the user: "The API platform is running locally. I'll add a gateway so we can start deploying APIs." Then proceed directly to Step 4.
-
-**If the health check fails (platform not running):**
-Ask: "Are you connecting to an existing gateway (e.g. a team or cloud server), or would you like a fresh local installation?"
-- If remote: ask for the server URL and credentials, then skip Step 3 and go to Step 4
-- If fresh local install: continue to Step 3
+- **Healthy** → silently reuse. Tell the user *"I see a gateway already running locally — using that. Ask me if you want a clean rebuild."* Skip Step 3, go to Step 4 with `--server http://localhost:9090 --admin-server http://localhost:9094`.
+- **Not healthy** → continue to Step 3 to extract and start the local gateway.
 
 **Step 3 — Check Docker and set up the gateway (local only)**
 
@@ -159,7 +205,7 @@ ap gateway add --display-name <name> --server <server-url> --admin-server <admin
 
 `--admin-server` is required — without it, `ap gateway health` in Step 5 fails.
 
-For a local Docker setup with default credentials (admin/admin):
+**For the fresh-local case** (Step 2 branch B, default credentials admin/admin):
 ```bash
 ap gateway add --display-name dev \
   --server http://localhost:9090 \
@@ -167,7 +213,13 @@ ap gateway add --display-name dev \
   --auth basic --username admin --password admin
 ```
 
-For a remote or custom-credential server, ask the user for both the `--server` and `--admin-server` URLs (and credentials) before running.
+**For the existing-gateway case** (Step 2 branch A): use the URLs, display-name, auth method, and credentials the user already gave you in Step 2 — don't re-prompt. Same `ap gateway add` shape, with the user's values substituted. If the user picked **env vars** for credentials in Step 2, omit `--username`/`--password` (or `--token`) — the CLI reads them from the environment:
+```bash
+ap gateway add --display-name <user-supplied-name> \
+  --server <user-supplied-server-url> \
+  --admin-server <user-supplied-admin-url> \
+  --auth <none|basic|bearer> [--username <u> --password <p> | --token <t>]
+```
 
 **Step 5 — Verify gateway health**
 

@@ -1,0 +1,19 @@
+{
+  "name": "wso2-agent-skills",
+  "owner": {
+    "name": "WSO2",
+    "url": "https://github.com/wso2"
+  },
+  "metadata": {
+    "description": "Agent skills for building and managing with WSO2 products"
+  },
+  "plugins": [
+    {
+      "name": "api-platform",
+      "source": "./plugins/api-platform",
+      "description": "Skills for the WSO2 API Platform — design, assess, and fix OpenAPI specs for AI agent readiness, security, and design quality; then set up, publish, and manage APIs through the WSO2 API Gateway using the ap CLI.",
+      "category": "development",
+      "tags": ["wso2", "api-platform", "openapi", "api-gateway", "api-design"]
+    }
+  ]
+}

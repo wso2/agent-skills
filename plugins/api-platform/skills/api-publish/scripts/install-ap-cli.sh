@@ -21,7 +21,7 @@ ZIP_URL="https://github.com/wso2/api-platform/releases/download/ap/${AP_VERSION}
 ZIP_PATH="$HOME/Downloads/ap.zip"
 EXTRACT_DIR="$HOME/Downloads/ap-install"
 
-mkdir -p "$BIN_DIR"
+mkdir -p "$BIN_DIR" "$HOME/Downloads"
 curl -fLo "$ZIP_PATH" "$ZIP_URL"
 unzip -o "$ZIP_PATH" -d "$EXTRACT_DIR" >/dev/null
 AP_BIN=$(find "$EXTRACT_DIR" -type f -name "ap" | head -1)
@@ -33,12 +33,12 @@ mv "$AP_BIN" "$BIN_DIR/ap"
 chmod +x "$BIN_DIR/ap"
 rm -rf "$ZIP_PATH" "$EXTRACT_DIR"
 
-# Ensure ~/.local/bin is on PATH for future shells.
+# Ensure $BIN_DIR is on PATH for future shells.
 SHELL_RC="$HOME/.bashrc"
 [[ "${SHELL:-}" == */zsh ]] && SHELL_RC="$HOME/.zshrc"
 PATH_STATUS="path-already-configured"
-if ! grep -q '\.local/bin' "$SHELL_RC" 2>/dev/null; then
-  if echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$SHELL_RC"; then
+if ! grep -qF "$BIN_DIR" "$SHELL_RC" 2>/dev/null; then
+  if echo "export PATH=\"$BIN_DIR:\$PATH\"" >> "$SHELL_RC"; then
     PATH_STATUS="path-added-to:$SHELL_RC"
   else
     PATH_STATUS="path-update-failed:$SHELL_RC"

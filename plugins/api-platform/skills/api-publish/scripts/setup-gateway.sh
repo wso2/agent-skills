@@ -27,7 +27,7 @@ fi
 EXTRACTION_STATUS="reused-existing"
 if [ ! -d "$GW_DIR" ]; then
   EXTRACTION_STATUS="freshly-extracted"
-  mkdir -p "$GW_PARENT"
+  mkdir -p "$GW_PARENT" "$HOME/Downloads"
   ZIP_NAME="wso2apip-api-gateway-${GW_VERSION}.zip"
   ZIP_URL="https://github.com/wso2/api-platform/releases/download/gateway/v${GW_VERSION}/${ZIP_NAME}"
   ZIP_PATH="$HOME/Downloads/${ZIP_NAME}"

@@ -49,7 +49,7 @@ Docs live on two release-line branches in `wso2/api-platform`. Use these — don
 Before doing anything, show the user a short, outcome-oriented plan tailored to what they've said. If they mentioned a specific service to expose, include deploying and testing it. If they only want the gateway set up, keep it to setup. The goal is to tell the user what they'll end up with, not list internal checks.
 
 Example when the user wants to expose a service:
-```
+```text
 I'll set up the WSO2 API Platform Gateway and expose your service.
 Here's what I'll do:
 ✦ Install the ap CLI
@@ -60,7 +60,7 @@ Here's what I'll do:
 ```
 
 Example when the user just wants the gateway running:
-```
+```text
 I'll get the WSO2 API Platform Gateway running for you.
 Here's what I'll do:
 ✦ Install the ap CLI
@@ -91,22 +91,18 @@ Run the bundled install script — it detects the platform, downloads the matchi
 bash <absolute-path-to-skill>/scripts/install-ap-cli.sh
 ```
 
-The script prints one summary line on success: `ap installed at /Users/.../.local/bin/ap (path-already-configured | path-added-to:<rc-file> | path-update-failed:<rc-file>)`. Read the parenthetical to know what to tell the user about PATH:
-
-- `path-already-configured` — say nothing extra; verify with `ap --help`.
-- `path-added-to:<rc-file>` — tell the user: "I added `~/.local/bin` to your `<rc-file>`. Run `source <rc-file>` (or open a new terminal) and confirm here." Wait for confirmation, then run `ap --help`.
-- `path-update-failed:<rc-file>` — tell the user: "I couldn't update your shell profile automatically. Add this line to your `~/.zshrc` or `~/.bashrc` manually, then source it: `export PATH=\"$HOME/.local/bin:$PATH\"`."
+The script prints one summary line on success: `ap installed at /Users/.../.local/bin/ap (path-already-configured | path-added-to:<rc-file> | path-update-failed:<rc-file>)`.
 
 Verify immediately:
 ```bash
 ap --help
 ```
 
-If this succeeds, continue to Step 2.
+If `ap --help` succeeds, continue to Step 2. The only install-script status worth surfacing is `path-update-failed:<rc-file>` — it means the user has to act if they want to use `ap` in their own terminals. Tell them: *"Heads up: I couldn't update your shell profile automatically. To use `ap` in your own terminals, add this to `~/.zshrc` or `~/.bashrc`: `export PATH=\"$HOME/.local/bin:$PATH\"`."* Then continue. For `path-already-configured` and `path-added-to:<rc-file>`, say nothing extra — just continue.
 
-> **Note for agent:** From this point on, always invoke `ap` by its bare name — never the full path `~/.local/bin/ap`. The Bash tool environment already has `~/.local/bin` on PATH.
+If `ap --help` actually fails — rare; only happens when the Bash tool's PATH didn't pick up `~/.local/bin` — fall back: tell the user *"`~/.local/bin` isn't on the Bash tool's PATH yet. Please run `source ~/.zshrc` (or `source ~/.bashrc`), or restart this Claude Code session, then confirm here."* Wait, then re-run `ap --help`.
 
-If `ap --help` fails right after a fresh install, the new PATH line in the rc file isn't loaded in the current shell. Tell the user: "`~/.local/bin` isn't on your current PATH yet. Please run `source ~/.zshrc` (or `source ~/.bashrc`), or open a new terminal, then confirm here." Wait for confirmation, then re-run `ap --help` before continuing.
+> **Note for agent:** From this point on, always invoke `ap` by its bare name — never the full path `~/.local/bin/ap`.
 
 **Step 2 — Find or set up the gateway**
 
@@ -199,7 +195,7 @@ Wait a few seconds, then verify: `curl -s http://localhost:9094/api/admin/v0.9/h
 **Step 4 — Connect the ap CLI**
 
 Format:
-```
+```bash
 ap gateway add --display-name <name> --server <server-url> --admin-server <admin-server-url> [--auth <none|basic|bearer>]
 ```
 
@@ -234,7 +230,7 @@ If healthy, report ✓ and move to Phase 2.
 ## Phase 2 — Expose an API
 
 Before starting, show the user a brief plan:
-```
+```text
 Here's what I'll do to expose your API:
 ✦ Gather your service details
 ✦ Create the API resource file
@@ -299,7 +295,7 @@ curl http://localhost:8080/<context>/v1.0/<first-endpoint-path>
 ```
 
 **Report the result** — show the full URL, e.g.:
-```
+```text
 ✓ Your API is live:
   GET http://localhost:8080/myservice/v1.0/users
   POST http://localhost:8080/myservice/v1.0/users
@@ -344,7 +340,7 @@ After testing, ask:
 
 Show a dynamic menu scoped to this API. Only show options not yet applied in this session:
 
-```
+```text
 What would you like to configure?
 → [Secure]    Add authentication          ← omit if auth policy already applied
 → [Protect]   Add rate limiting           ← omit if rate limiting already applied
@@ -396,6 +392,7 @@ Source (1000+ lines — jump to the anchor, don't read top-to-bottom):
 ---
 
 ### Gateway ports (local Docker)
+
 | Port | Purpose |
 |------|---------|
 | 9090 | Gateway-Controller REST API — `ap gateway` `--server`, REST API deployments (`POST /api/management/v0.9/rest-apis`) |

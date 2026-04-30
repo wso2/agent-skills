@@ -15,8 +15,12 @@ applications:
     description: <string>    # Optional. Human-readable description.
     access_url: <string>     # Optional. URL where the app is hosted (shown in console).
     client_type: <string>    # Optional. "public" or "confidential". Use "public" for SPAs (PKCE, no secret). Default: confidential.
-    redirect_uris:           # Optional. Allowed redirect URIs after login.
-      - <string>             #   Supports regexp: prefix — e.g. "regexp=(...)"
+    redirect_uris:           # Optional. Allowed redirect URIs for login AND post-logout.
+      - <string>             #   Asgardeo rejects multiple plain entries (API error 501:
+                             #   "Multiple callbacks for OAuth2 are not supported yet").
+                             #   For SPAs needing both /callback (login) and the bare origin
+                             #   (post-logout), use a single regex entry:
+                             #     - regexp=(http://localhost:5173(/callback)?)
     allowed_origins:         # Optional. CORS-allowed origins for the app.
       - <string>
     grant_types:             # Optional. Enabled OAuth2 grant types. Valid values:

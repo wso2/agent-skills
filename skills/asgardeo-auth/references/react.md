@@ -25,10 +25,14 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <AsgardeoProvider
       baseUrl="https://api.asgardeo.io/t/<org_name>"
-      clientId="<app_id>"
-      signInRedirectURL="<redirect_uri>"
-      signOutRedirectURL="<app_base_url>"
-      scope={["openid", "profile", "email"]}
+      // Replace with your OAuth2 consumer key — retrieve it after `asgardeo apply --non-interactive`:
+      //   asgardeo app list --output json                    # get the app UUID
+      //   asgardeo app get --app-id <uuid> --credentials     # parse Client Id from table output
+      clientId="<consumer-key-placeholder>"
+      afterSignInUrl="http://localhost:5173/callback"
+      afterSignOutUrl="http://localhost:5173"
+      scopes={["openid", "profile", "email", "internal_login"]}
+      instanceId={1}
     >
       <App />
     </AsgardeoProvider>
@@ -36,26 +40,36 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 );
 ```
 
+Notes on props:
+- `afterSignInUrl` — the post-login redirect (must match a registered redirect URI). Replaces the older `signInRedirectURL`.
+- `afterSignOutUrl` — the post-logout redirect (must also match a registered redirect URI). Replaces the older `signOutRedirectURL`.
+- `scopes` is plural (the older `scope` is deprecated). `internal_login` is required so `/scim2/Me` returns the full profile.
+- `instanceId={1}` — must be non-zero, otherwise the OAuth2 `state` prefix is dropped and the callback is silently ignored.
+
 ## 3. Add login/logout to App component
 
-Find the root `App` component (`src/App.tsx` or `src/App.jsx`).
-Add login/logout using the `useAsgardeo` hook:
+Find the root `App` component (`src/App.tsx` or `src/App.jsx`):
 
 ```tsx
 // src/App.tsx
-import { useAsgardeo } from "@asgardeo/react";
+import { useAsgardeo, useUser } from "@asgardeo/react";
 
 function App() {
-  const { state, signIn, signOut } = useAsgardeo();
-  const { isAuthenticated, isLoading, username } = state;
+  const { isSignedIn, isLoading, signIn, signOut } = useAsgardeo();
+  const { profile, flattenedProfile } = useUser();
 
   if (isLoading) return <p>Loading...</p>;
 
+  const displayName =
+    profile?.name?.givenName ||
+    flattenedProfile?.userName ||
+    "there";
+
   return (
     <div>
-      {isAuthenticated ? (
+      {isSignedIn ? (
         <>
-          <p>Welcome, {username}</p>
+          <p>Welcome, {displayName}</p>
           <button onClick={() => signOut()}>Logout</button>
         </>
       ) : (
@@ -74,9 +88,43 @@ If using React Router, add a route for the redirect URI path (e.g., `/callback`)
 `@asgardeo/react` handles the callback automatically when the provider mounts —
 no custom callback component is needed unless you want a custom loading screen.
 
+## 5. SCIM2 fallback (only if `useUser()` returns empty profile)
+
+Some `@asgardeo/react` versions (e.g. 0.23.3) don't reliably surface SCIM2 fields into `useUser()` even when `internal_login` is in scopes. If `profile` is empty after sign-in, fetch `/scim2/Me` directly:
+
+```tsx
+import { useEffect, useState } from "react";
+import { useAsgardeo, useUser } from "@asgardeo/react";
+
+function UserProfile() {
+  const { isSignedIn, getAccessToken } = useAsgardeo();
+  const { profile } = useUser();
+  const [scimProfile, setScimProfile] = useState<any>(null);
+
+  useEffect(() => {
+    if (!isSignedIn || profile?.name?.givenName) return;
+    (async () => {
+      const token = await getAccessToken();
+      const res = await fetch("https://api.asgardeo.io/t/<org_name>/scim2/Me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setScimProfile(await res.json());
+    })();
+  }, [isSignedIn, profile]);
+
+  const name =
+    profile?.name?.givenName ||
+    scimProfile?.name?.givenName ||
+    scimProfile?.userName;
+
+  return <p>Welcome, {name}</p>;
+}
+```
+
+Try `useUser()` first — only fetch SCIM2 manually when its `profile` stays empty after the loading state resolves.
+
 ## Notes
 
-- `signIn()` must be called via `onClick={() => signIn()}` (arrow function), not `onClick={signIn}`.
-  Passing the click event directly to `signIn` corrupts its OAuth2 params argument.
-- The `signInRedirectURL` must exactly match the redirect URI registered in Asgardeo (including path).
+- `signIn()` must be called via `onClick={() => signIn()}` (arrow function), not `onClick={signIn}`. Passing the click event directly to `signIn` corrupts its OAuth2 params argument.
+- The `afterSignInUrl` and `afterSignOutUrl` must each match a registered redirect URI in the app's `redirect_uris`. For SPAs needing both, register a single regex entry like `regexp=(http://localhost:5173(/callback)?)` — Asgardeo rejects multiple plain URIs.
 - HTTPS is not required for `localhost` development with Asgardeo cloud.

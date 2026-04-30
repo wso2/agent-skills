@@ -315,8 +315,18 @@ Use this field mapping when deriving values from the user's framework and intent
 | SPA / browser app | `client_type` | `public` |
 | Server-side / M2M | `grant_types` | `client_credentials` |
 | Standard login | `grant_types` | `authorization_code`, `refresh_token` |
-| Callback URL | `redirect_uris` | Framework default or user-provided value |
+| Callback + post-logout (SPA) | `redirect_uris` | A single regex entry — see below |
+| Callback only (server-side) | `redirect_uris` | Framework default or user-provided value |
 | Dev server URL | `allowed_origins` | Derived from redirect URI base (e.g. `http://localhost:5173`) |
+
+**Important:** Asgardeo rejects multiple plain `redirect_uris` entries with API error 501 (`Multiple callbacks for OAuth2 are not supported yet`). For SPAs that need both a login callback (`/callback`) **and** a post-logout redirect (the app base URL), register them as a single regex entry:
+
+```yaml
+redirect_uris:
+  - regexp=(http://localhost:5173(/callback)?)
+```
+
+This single entry matches both `http://localhost:5173/callback` (used by `signIn()`) and `http://localhost:5173` (used by `signOut()` as `afterSignOutUrl`). Without this, logout fails with "OAuth Processing Error" because the post-logout redirect URI isn't registered. Adjust the host/port to match the user's dev server.
 
 Write the file using YAML with 4-space indentation, matching the existing file style.
 
@@ -455,6 +465,27 @@ The SDK fetches user profile via SCIM2 (`/scim2/Me`). This endpoint requires the
 
 ### `useUser()` profile field is `givenName` (camelCase)
 The SCIM2 response is mapped to camelCase. Use `profile?.givenName`, not `profile?.given_name`.
+
+### Asgardeo rejects multiple plain `redirect_uris`
+Asgardeo's app provisioning API returns error 501 "Multiple callbacks for OAuth2 are not supported yet" when more than one plain URI is supplied. Register a single regex entry instead — e.g. `regexp=(http://localhost:5173(/callback)?)` — which covers both the login callback path and the bare origin used as the post-logout URL.
+
+### Logout fails if `afterSignOutUrl` isn't a registered redirect URI
+Asgardeo enforces OIDC's rule that `post_logout_redirect_uri` must match a registered redirect URI on the app. If the SDK is configured with `afterSignOutUrl="http://localhost:5173"` but only `http://localhost:5173/callback` is registered, logout fails with "OAuth Processing Error". The regex pattern above prevents this — both URIs match the single registered entry.
+
+### `useUser()` may not surface SCIM2 fields in some SDK versions
+In some versions of `@asgardeo/react` (observed in 0.23.3), `useUser()` returns only org-level claims (`org_id`, `org_name`, `org_handle`) even when `internal_login` is in scopes and `/scim2/Me` returns the full profile correctly. If `profile?.givenName` and `flattenedProfile?.emails` come back empty after a successful sign-in, fall back to calling SCIM2 directly:
+
+```ts
+const { getAccessToken } = useAsgardeo();
+const token = await getAccessToken();
+const res = await fetch(`${baseUrl}/scim2/Me`, {
+  headers: { Authorization: `Bearer ${token}` },
+});
+const me = await res.json();
+// me.name.givenName, me.emails[0], me.userName
+```
+
+Store the result in local component state. Try `useUser()` first — only fall back if its `profile` is empty after the loading state resolves.
 
 ---
 

@@ -2,7 +2,13 @@
 
 Official Agent skills for building and managing with WSO2 products.
 
-## Install
+## Plugins
+
+| Plugin | Description |
+|--------|-------------|
+| [api-platform](./plugins/api-platform/README.md) | Design, assess, and fix OpenAPI specs; deploy and manage APIs via the WSO2 API Gateway |
+
+## Installation
 
 ### Option 1 — npx skills
 
@@ -23,16 +29,11 @@ Install a plugin:
 /plugin install api-platform@wso2-agent-skills
 ```
 
-## Plugins
+## Development
 
-| Plugin | Description |
-|--------|-------------|
-| [api-platform](./plugins/api-platform/README.md) | Design, assess, and fix OpenAPI specs; deploy and manage APIs via the WSO2 API Gateway |
+See [DEVELOPMENT.md](./DEVELOPMENT.md) for instructions on adding new plugins.
 
-## Adding a New Plugin
+## License
 
-1. Create `plugins/<plugin-name>/`
-2. Add `.claude-plugin/plugin.json` with name, version, author, license
-3. Add `skills/<skill-name>/SKILL.md` for each skill
-4. Register the plugin in `.claude-plugin/marketplace.json`
+You are free to copy, modify, and distribute these skills under the terms of the Apache 2.0 license. See the [LICENSE](./LICENSE) file for details.
 

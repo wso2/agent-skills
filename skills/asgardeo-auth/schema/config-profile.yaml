@@ -4,7 +4,7 @@
 # The profile name is typically the org slug (e.g., config-giga.yaml for org "giga")
 # or an environment name (e.g., config-prod.yaml).
 #
-# Apply changes to the live org with: asgardeo apply
+# Apply changes to the live org with: asgardeo apply --non-interactive
 
 # Required. The Asgardeo organization slug.
 org: <string>
@@ -14,7 +14,7 @@ applications:
   - name: <string>           # Required. Application display name.
     description: <string>    # Optional. Human-readable description.
     access_url: <string>     # Optional. URL where the app is hosted (shown in console).
-    client_type: <string>    # Optional. "public" or "confidential" (default: confidential).
+    client_type: <string>    # Optional. "public" or "confidential". Use "public" for SPAs (PKCE, no secret). Default: confidential.
     redirect_uris:           # Optional. Allowed redirect URIs after login.
       - <string>             #   Supports regexp: prefix — e.g. "regexp=(...)"
     allowed_origins:         # Optional. CORS-allowed origins for the app.

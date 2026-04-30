@@ -34,9 +34,9 @@ and the official Asgardeo SDKs.
 - **Never execute immediately.** Always assess silently, present a plan, then confirm before touching files or running commands.
 - Assume `asgardeo` is on the user's PATH. If `which asgardeo` fails, tell the user to install or build the CLI binary first.
 - The M2M (management) app client ID and secret are for the CLI to authenticate with Asgardeo's management API — they are NOT used in the user's application code.
-- **The SDK `clientId` is the OAuth2 consumer key, NOT the app UUID.** `asgardeo app list` returns UUIDs. The consumer key is retrieved via `asgardeo app get --oidc`. Always use the consumer key in SDK config.
-- The CLI always creates **confidential clients** (with a `clientSecret`). Include `clientSecret` in the SDK provider config.
-- **Use the declarative config file as the source of truth for org state.** Generate or update `.asgardeo/config-<profile>.yaml` using the schema in `schema/config-profile.yaml`, then apply changes with `asgardeo apply`. Do not use `asgardeo app create` for apps tracked by a config file.
+- **The SDK `clientId` is the OAuth2 consumer key, NOT the app UUID.** `asgardeo app list` returns UUIDs. The consumer key is retrieved via `asgardeo app get --credentials`. Always use the consumer key in SDK config.
+- **Browser-based apps (SPA) should use `client_type: public`** in the config file. Public clients use PKCE and don't need a `clientSecret`. Only set `client_type: confidential` for server-side apps that can securely store a secret. If `client_type` is omitted or set to `confidential`, `asgardeo app get --credentials` may show an empty client secret — use `public` for SPAs to avoid this.
+- **Use the declarative config file as the source of truth for org state.** Generate or update `.asgardeo/config-<profile>.yaml` using the schema in `schema/config-profile.yaml`, then apply changes with `asgardeo apply --non-interactive`. Do not use `asgardeo app create` for apps tracked by a config file.
 - When a `.asgardeo/config-<profile>.yaml` already exists, always read it first and merge new entries — never overwrite the whole file blindly.
 - Always set `allowed_origins` in the config file for browser-based apps — without it, all SDK calls are blocked by CORS.
 - Always include `internal_login` in scopes so the SDK can fetch the user's profile via SCIM2.
@@ -108,7 +108,7 @@ Here's what I'll do to add Asgardeo auth to your app:
 
   1. Verify the Asgardeo CLI is configured and authenticated
   2. Register the OAuth2 app in .asgardeo/config-<profile>.yaml
-  3. Apply the config to Asgardeo with `asgardeo apply`
+  3. Apply the config to Asgardeo with `asgardeo apply --non-interactive`
   4. Retrieve the OAuth2 consumer key (clientId for SDK)
   5. Install the Asgardeo SDK for [detected framework]
   6. Add the auth provider and login/logout to your app
@@ -185,7 +185,7 @@ Next steps:
   1. Run your app: npm run dev
   2. Clear browser site data before first login (avoid stale OIDC cache)
   3. Test login at <app_base_url>
-  4. To update org config later, edit .asgardeo/config-<profile>.yaml and run `asgardeo apply`
+  4. To update org config later, edit .asgardeo/config-<profile>.yaml and run `asgardeo apply --non-interactive`
 ```
 
 ---
@@ -324,45 +324,49 @@ Always prepend a comment block at the top of the written config file with the ex
 
 ```yaml
 # Apply this config to your Asgardeo org:
-#   asgardeo apply
+#   asgardeo apply --non-interactive
 #
 # Then retrieve the OAuth2 consumer key for SDK configuration:
-#   asgardeo app list --output json                            # get the app UUID
-#   asgardeo app get --app-id <app_uuid> --oidc --output json  # get clientId + clientSecret
+#   asgardeo app list --output json                          # get the app UUID
+#   asgardeo app get --app-id <app_uuid> --credentials       # get clientId (table output only)
 ```
 
 #### 2d — Apply the config to Asgardeo
 
 ```bash
-asgardeo apply
+asgardeo apply --non-interactive
 ```
+
+> **Critical:** Always use `--non-interactive`. Without it, `asgardeo apply` prompts for Y/n confirmation using a Go survey library that requires a real TTY. Piping `yes`, `script`, `expect`, and pty wrappers all fail — the library sends ANSI cursor-position queries (`[6n`) that crash with a nil-pointer panic when no TTY is present. `--non-interactive` bypasses the prompt entirely.
 
 This reconciles the declared state in all `config-<profile>.yaml` files with the live org — creating or updating applications, users, and groups as needed. CORS (`allowed_origins`) is also applied at this step.
 
 ### Phase 2.5: Retrieve the OAuth2 Consumer Key
 
-After `asgardeo apply`, retrieve the consumer key and client secret for SDK configuration.
+After `asgardeo apply --non-interactive`, retrieve the consumer key and client secret for SDK configuration.
 
 ```bash
 # Get the app UUID for the registered app
 asgardeo app list --output json
 
-# Use the UUID to fetch the OAuth2 OIDC credentials
-asgardeo app get --app-id <app_uuid> --oidc --output json
+# Use the UUID to fetch the OAuth2 credentials (table format only — --output json omits credentials)
+asgardeo app get --app-id <app_uuid> --credentials
 ```
 
-Parse from the `--oidc` output:
-- `clientId` → the OAuth2 consumer key (e.g. `_lyx0w0mukGTj2zFyU7haM1euQIa`) — use this in SDK config
-- `clientSecret` → the client secret
+Parse from the table output:
+- `Client Id` → the OAuth2 consumer key (e.g. `_lyx0w0mukGTj2zFyU7haM1euQIa`) — use this in SDK config
+- `Client Secret` → the client secret (only present for `confidential` apps; empty or absent for `public` apps)
 
-> **Important:** The `id` from `app list` is the app's internal UUID used only in CLI commands. The `clientId` from `--oidc` is the OAuth2 consumer key used in SDK config. They are different values.
+> **Important:** The `id` from `app list` is the app's internal UUID used only in CLI commands. The `Client Id` from `--credentials` is the OAuth2 consumer key used in SDK config. They are different values.
+>
+> **Note:** `--credentials` only works with the default table output. Adding `--output json` or `--output yaml` omits credentials entirely.
 
 In the SDK integration file (e.g. `main.tsx`, `layout.tsx`, `main.ts`), add an inline comment at the `clientId` placeholder so the user knows exactly how to retrieve it:
 
 ```ts
-// Replace with your OAuth2 consumer key — retrieve it after `asgardeo apply`:
-//   asgardeo app list --output json                             # get the app UUID
-//   asgardeo app get --app-id <uuid> --oidc --output json       # parse clientId field
+// Replace with your OAuth2 consumer key — retrieve it after `asgardeo apply --non-interactive`:
+//   asgardeo app list --output json                          # get the app UUID
+//   asgardeo app get --app-id <uuid> --credentials           # parse Client Id from table output
 clientId: "<consumer-key-placeholder>",
 ```
 
@@ -423,13 +427,19 @@ Read `package.json` dependencies and devDependencies:
 ## Known Gotchas
 
 ### clientId is the consumer key, not the app UUID
-`asgardeo app list` returns a UUID (e.g. `26ba5b0c-...`) — this is the internal identifier used only in CLI commands. The SDK `clientId` is the OAuth2 **consumer key** (e.g. `_lyx0w0mukGTj2zFyU7haM1euQIa`) retrieved via `asgardeo app get --app-id <uuid> --oidc`. Always use the consumer key in SDK configuration.
+`asgardeo app list` returns a UUID (e.g. `26ba5b0c-...`) — this is the internal identifier used only in CLI commands. The SDK `clientId` is the OAuth2 **consumer key** (e.g. `_lyx0w0mukGTj2zFyU7haM1euQIa`) retrieved via `asgardeo app get --app-id <uuid> --credentials`. Always use the consumer key in SDK configuration.
 
-### CLI always creates confidential clients
-The CLI creates apps with a `clientSecret`. Include it in the provider config (e.g. `AsgardeoProvider`), otherwise the token endpoint returns a Basic Auth challenge (browser shows a popup).
+### Use `client_type: public` for SPAs
+Browser-based apps (SPA) should always use `client_type: public` in the config file. Public clients use PKCE — no `clientSecret` needed in the SDK config. If you omit `client_type` or set it to `confidential`, `asgardeo app get --credentials` may show an empty client secret, and the token endpoint will return a Basic Auth challenge (browser shows a popup). Only use `confidential` for server-side apps that can securely store a secret.
+
+### `asgardeo apply` requires `--non-interactive`
+The CLI's `apply` command prompts for Y/n confirmation using a Go survey library that requires a real TTY. In non-TTY environments (piped input, subprocesses, CI), the library sends ANSI cursor-position queries (`[6n`) that cause a nil-pointer panic. `yes |`, `script`, `expect`, and pty wrappers all fail. Always use `asgardeo apply --non-interactive` to bypass the prompt.
+
+### `app get --credentials` only works with table output
+`asgardeo app get --app-id <uuid> --credentials` shows credentials (clientId, clientSecret) only in the default table format. Adding `--output json` or `--output yaml` omits the credentials entirely. Always use table output when retrieving credentials, and parse the values from the table text.
 
 ### CORS blocks all SDK calls by default
-A freshly applied Asgardeo app with no `allowed_origins` will have every browser SDK request (`token`, `jwks`, `userinfo`, `scim2`) blocked by CORS. Always set `allowed_origins` in `config-<profile>.yaml` before running `asgardeo apply`.
+A freshly applied Asgardeo app with no `allowed_origins` will have every browser SDK request (`token`, `jwks`, `userinfo`, `scim2`) blocked by CORS. Always set `allowed_origins` in `config-<profile>.yaml` before running `asgardeo apply --non-interactive`.
 
 ### instanceId must be non-zero
 The SDK uses `instanceId` to prefix the OAuth2 `state` parameter. If `instanceId={0}` (the default), JavaScript's falsy check skips the prefix and state validation fails silently — the callback URL is never processed. Always set `instanceId={1}`.

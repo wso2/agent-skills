@@ -27,6 +27,10 @@ Read these when needed — don't load all of them upfront:
 - `references/api-yaml-examples.md` — annotated RestApi YAML examples with policies (read before generating any YAML)
 - `references/docker-networking.md` — Docker networking solutions (read before setting the upstream URL)
 
+Bundled scripts (invoke with `bash <absolute-path-to-skill>/scripts/<name>` — keeps the user's permission prompt to one line instead of pasting the full body):
+- `scripts/install-ap-cli.sh` — installs the ap CLI release zip into `~/.local/bin` and ensures PATH (Step 1, Path B)
+- `scripts/setup-gateway.sh` — extracts the gateway release to `~/wso2-api-gateway/v<version>/` and runs `docker compose up -d` (Step 3)
+
 ## External docs (fetch when needed)
 
 Docs live on two release-line branches in `wso2/api-platform`. Use these — don't fall back to `main`:
@@ -80,31 +84,18 @@ If `ap` is not found: ask the user whether they want to install it themselves or
 Point them to https://github.com/wso2/api-platform/releases/tag/ap%2Fv0.8.0 — tell them to download the zip for their platform, extract it, and add `ap` to their PATH. Wait for them to confirm, then verify with `ap --help` before continuing.
 
 **If they want you to install it (Path B):**
-Detect the platform, download to `~/Downloads`, extract, move only the binary to `~/.local/bin`, clean up, and add to PATH:
-```bash
-OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-ARCH=$(uname -m)
-[ "$ARCH" = "x86_64" ] && ARCH="amd64"
-[ "$ARCH" = "aarch64" ] && ARCH="arm64"
+Run the bundled install script — it detects the platform, downloads the matching ap CLI release into `~/Downloads`, moves the binary to `~/.local/bin/ap`, cleans up, and ensures `~/.local/bin` is on PATH for future shells.
 
-mkdir -p "$HOME/.local/bin"
-curl -Lo "$HOME/Downloads/ap.zip" \
-  "https://github.com/wso2/api-platform/releases/download/ap/v0.8.0/ap-${OS}-${ARCH}-v0.8.0.zip"
-unzip -o "$HOME/Downloads/ap.zip" -d "$HOME/Downloads/ap-install"
-AP_BIN=$(find "$HOME/Downloads/ap-install" -type f -name "ap" | head -1)
-mv "$AP_BIN" "$HOME/.local/bin/ap"
-chmod +x "$HOME/.local/bin/ap"
-rm -rf "$HOME/Downloads/ap.zip" "$HOME/Downloads/ap-install"
-SHELL_RC="$HOME/.bashrc"
-[[ "$SHELL" == */zsh ]] && SHELL_RC="$HOME/.zshrc"
-if grep -q '\.local/bin' "$SHELL_RC" 2>/dev/null; then
-  echo "PATH already configured in $SHELL_RC"
-elif echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$SHELL_RC"; then
-  echo "Added to $SHELL_RC"
-else
-  echo "WARN: could not update $SHELL_RC"
-fi
+```bash
+bash <absolute-path-to-skill>/scripts/install-ap-cli.sh
 ```
+
+The script prints one summary line on success: `ap installed at /Users/.../.local/bin/ap (path-already-configured | path-added-to:<rc-file> | path-update-failed:<rc-file>)`. Read the parenthetical to know what to tell the user about PATH:
+
+- `path-already-configured` — say nothing extra; verify with `ap --help`.
+- `path-added-to:<rc-file>` — tell the user: "I added `~/.local/bin` to your `<rc-file>`. Run `source <rc-file>` (or open a new terminal) and confirm here." Wait for confirmation, then run `ap --help`.
+- `path-update-failed:<rc-file>` — tell the user: "I couldn't update your shell profile automatically. Add this line to your `~/.zshrc` or `~/.bashrc` manually, then source it: `export PATH=\"$HOME/.local/bin:$PATH\"`."
+
 Verify immediately:
 ```bash
 ap --help
@@ -114,12 +105,7 @@ If this succeeds, continue to Step 2.
 
 > **Note for agent:** From this point on, always invoke `ap` by its bare name — never the full path `~/.local/bin/ap`. The Bash tool environment already has `~/.local/bin` on PATH.
 
-If `ap` is not found, tell the user: "`~/.local/bin` isn't on your current PATH yet. Please run `source ~/.zshrc` (or `source ~/.bashrc`), or open a new terminal, then confirm here." Wait for confirmation, then re-run `ap --help` before continuing.
-
-If the install script output contains `WARN: could not update`, also tell the user: "I couldn't update your shell profile automatically. Add this line to your `~/.zshrc` or `~/.bashrc` manually before sourcing it:
-```
-export PATH="$HOME/.local/bin:$PATH"
-```"
+If `ap --help` fails right after a fresh install, the new PATH line in the rc file isn't loaded in the current shell. Tell the user: "`~/.local/bin` isn't on your current PATH yet. Please run `source ~/.zshrc` (or `source ~/.bashrc`), or open a new terminal, then confirm here." Wait for confirmation, then re-run `ap --help` before continuing.
 
 **Step 2 — Detect existing gateway**
 
@@ -144,52 +130,23 @@ Ask: "Are you connecting to an existing gateway (e.g. a team or cloud server), o
 
 **Step 3 — Check Docker and set up the gateway (local only)**
 
+Confirm Docker is installed:
 ```bash
 docker --version
 ```
 
-Then detect which Compose variant is available and store the working one:
-```bash
-if docker compose version &>/dev/null; then
-  COMPOSE="docker compose"
-elif docker-compose version &>/dev/null; then
-  COMPOSE="docker-compose"
-else
-  echo "Docker Compose not found"
-fi
-```
-
-If neither works, stop and tell the user: "Docker Compose is required. Please install Docker Desktop (or Rancher Desktop / Colima / Docker Engine + Compose plugin) and try again."
-
-Use `$COMPOSE` for all subsequent compose commands.
-
-Choose the extraction directory. We don't install the gateway into the user's working directory — we extract the release zip to a stable, versioned location under `$HOME` so successive runs find it and the user's project tree stays clean:
+Then run the bundled setup script. It detects the Compose variant, extracts the gateway release to `~/wso2-api-gateway/v<version>/`, and brings up the Compose stack with project name `gateway`.
 
 ```bash
-GW_VERSION="1.1.0"
-GW_PARENT="$HOME/wso2-api-gateway"
-GW_DIR="$GW_PARENT/v$GW_VERSION"
+bash <absolute-path-to-skill>/scripts/setup-gateway.sh
 ```
 
-**If `$GW_DIR` already exists:** don't prompt. Tell the user *"Found an existing gateway extraction at `~/wso2-api-gateway/v1.1.0/` — reusing it. If you want a fresh copy, ask me and I'll remove that directory and re-extract."* Then skip the download/unzip block and go straight to the compose-up block.
+The script prints one summary line on success: `gateway ready at /Users/.../wso2-api-gateway/v1.1.0 (reused-existing | freshly-extracted); compose project: gateway`. Use the bracketed status to choose what to tell the user:
 
-**Download and extract** (skip if reusing an existing extraction):
-```bash
-mkdir -p "$GW_PARENT"
-curl -L -o "$HOME/Downloads/wso2apip-api-gateway-$GW_VERSION.zip" \
-  "https://github.com/wso2/api-platform/releases/download/gateway/v$GW_VERSION/wso2apip-api-gateway-$GW_VERSION.zip"
-unzip -q "$HOME/Downloads/wso2apip-api-gateway-$GW_VERSION.zip" -d "$GW_PARENT"
-rm "$HOME/Downloads/wso2apip-api-gateway-$GW_VERSION.zip"
-mv "$GW_PARENT/wso2apip-api-gateway-$GW_VERSION" "$GW_DIR"
-```
+- `freshly-extracted` — *"Gateway extracted at `~/wso2-api-gateway/v1.1.0/`. The Compose project name is `gateway` — to stop it later: `cd ~/wso2-api-gateway/v1.1.0 && docker compose -p gateway down`."*
+- `reused-existing` — *"Found an existing gateway extraction at `~/wso2-api-gateway/v1.1.0/` — reusing it. If you want a fresh copy, ask me and I'll remove that directory and re-run setup."*
 
-**Bring up the stack** (always run, whether reusing or freshly extracted — `compose up -d` is idempotent). The `cd` is required because the compose file uses relative paths for its volume mounts:
-```bash
-cd "$GW_DIR"
-$COMPOSE -p gateway up -d
-```
-
-Tell the user: *"Gateway extracted at `~/wso2-api-gateway/v1.1.0/`. The Docker Compose project name is `gateway` — to stop it later: `cd ~/wso2-api-gateway/v1.1.0 && docker compose -p gateway down`."*
+If Docker Compose isn't installed, the script exits non-zero with an error message — tell the user: *"Docker Compose is required. Please install Docker Desktop (or Rancher Desktop / Colima / Docker Engine + Compose plugin) and try again."*
 
 Wait a few seconds, then verify: `curl -s http://localhost:9094/api/admin/v0.9/health`
 

@@ -14,6 +14,13 @@
       "description": "Skills for the WSO2 API Platform — design, assess, and fix OpenAPI specs for AI agent readiness, security, and design quality; then set up, publish, and manage APIs through the WSO2 API Gateway using the ap CLI.",
       "category": "development",
       "tags": ["wso2", "api-platform", "openapi", "api-gateway", "api-design"]
+    },
+    {
+      "name": "identity-platform",
+      "source": "./plugins/identity-platform",
+      "description": "Skills for the WSO2 Identity Platform — set up Asgardeo authentication end-to-end (CLI org configuration, OAuth2 app registration, SDK installation, and minimal login/logout integration) for React, Next.js, Vue, and Express apps.",
+      "category": "development",
+      "tags": ["wso2", "identity-platform", "asgardeo", "oauth2", "oidc", "authentication", "sso"]
     }
   ]
 }

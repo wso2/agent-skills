@@ -1,0 +1,43 @@
+# Schema for .asgardeo/config-<profile>.yaml
+#
+# This file defines the declarative org state for an Asgardeo profile.
+# The profile name is typically the org slug (e.g., config-giga.yaml for org "giga")
+# or an environment name (e.g., config-prod.yaml).
+#
+# Apply changes to the live org with: asgardeo apply --non-interactive
+
+# Required. The Asgardeo organization slug.
+org: <string>
+
+# Optional. OAuth2 applications to register in the org.
+applications:
+  - name: <string>           # Required. Application display name.
+    description: <string>    # Optional. Human-readable description.
+    access_url: <string>     # Optional. URL where the app is hosted (shown in console).
+    client_type: <string>    # Optional. "public" or "confidential". Use "public" for SPAs (PKCE, no secret). Default: confidential.
+    redirect_uris:           # Optional. Allowed redirect URIs for login AND post-logout.
+      - <string>             #   Asgardeo rejects multiple plain entries (API error 501:
+                             #   "Multiple callbacks for OAuth2 are not supported yet").
+                             #   For SPAs needing both /callback (login) and the bare origin
+                             #   (post-logout), use a single regex entry:
+                             #     - regexp=(http://localhost:5173(/callback)?)
+    allowed_origins:         # Optional. CORS-allowed origins for the app.
+      - <string>
+    grant_types:             # Optional. Enabled OAuth2 grant types. Valid values:
+      - authorization_code
+      - refresh_token
+      - client_credentials
+      - account_switch
+      - organization_switch
+      - urn:ietf:params:oauth:grant-type:token-exchange
+
+# Optional. Users to provision in the org.
+users:
+  - username: <string>       # Required. Unique username (often an email address).
+    email: <string>          # Optional. User's email address.
+    given_name: <string>     # Optional. First name.
+    family_name: <string>    # Optional. Last name.
+
+# Optional. Groups to provision in the org.
+groups:
+  - name: <string>           # Required. Group display name.

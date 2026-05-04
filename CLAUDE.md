@@ -1,26 +1,19 @@
-# WSO2 Agent Skills — Developer Guidance
+# WSO2 Agent Skills — Agent Conventions
 
-This is a monorepo of agent skills for WSO2 products.
+## Skill Structure
 
-## Repo Layout
+Every skill lives at `plugins/<plugin>/skills/<skill-name>/SKILL.md`. `SKILL.md` opens with YAML frontmatter (at minimum `name` and `description` — the description is the primary trigger signal) followed by:
 
-```
-.claude-plugin/marketplace.json   — marketplace index (name: wso2-agent-skills)
-plugins/
-  <plugin-name>/
-    .claude-plugin/plugin.json    — plugin metadata
-    skills/<skill-name>/SKILL.md  — skill definition (one per skill)
-```
+- **Trigger conditions** — when the agent should activate this skill
+- **Workflow** — numbered phases with clear, ordered steps
+- **Allowed tools** — which agent tools the skill may use
+- **Reference pointers** — which `references/`, `scripts/`, or `assets/` files to read and when
 
-## Working with Skills
+Supporting material is split into `references/`, `scripts/`, and `assets/` siblings of `SKILL.md` so the skill body stays small and references load on demand.
 
-- Each skill lives in its own directory under `plugins/<plugin>/skills/`
-- SKILL.md defines triggers, workflows, and allowed tools
-- Supporting files (references, assets, scripts) sit alongside SKILL.md
+## Contributing a New Skill
 
-## Local Testing
-
-Point your agent at a plugin directory directly:
-```
-claude --plugin-dir plugins/api-platform
-```
+1. Create the skill directory under the appropriate plugin: `plugins/<plugin>/skills/<skill-name>/`.
+2. Write `SKILL.md`.
+3. Add `references/`, `scripts/`, or `assets/` siblings as needed.
+4. Verify the skill triggers correctly before submitting (test prompts that should and should not activate it).

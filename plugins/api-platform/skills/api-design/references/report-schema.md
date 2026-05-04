@@ -7,6 +7,7 @@ The assessment output is a single JSON object with this top-level shape:
   meta              — run metadata
   agentReadiness    — present when agent readiness was assessed
   securityReadiness — present when security readiness was assessed
+  designReadiness   — present when API design guidelines were assessed
 }
 ```
 
@@ -113,6 +114,31 @@ Present only when a Security Readiness assessment was requested.
 
 ---
 
+## `designReadiness`
+
+Present only when an API Design Guidelines assessment was requested. Spectral-only (no LLM analysis) — runs the WSO2 REST design ruleset (28 rules).
+
+```json
+{
+  "designReadiness": {
+    "spectral": {
+      "status": "completed",
+      "ruleset": "references/wso2-design-guidelines-raw.yaml",
+      "score": {
+        "critical": 0,
+        "high": 2,
+        "medium": 4,
+        "low": 1,
+        "rating": "Good"
+      },
+      "issues": [ ... ]
+    }
+  }
+}
+```
+
+---
+
 ## Issue Object
 
 All three sections use the same issue shape:
@@ -132,7 +158,7 @@ All three sections use the same issue shape:
 
 | Field | Description |
 |---|---|
-| `id` | Sequential, zero-padded: `spec-NNN` (Spectral AI), `ai-NNN` (LLM analysis), `sec-NNN` (OWASP) |
+| `id` | Sequential, zero-padded: `spec-NNN` (Spectral AI), `ai-NNN` (LLM analysis), `sec-NNN` (OWASP), `des-NNN` (WSO2 design) |
 | `severity` | `CRITICAL` / `HIGH` / `MEDIUM` / `LOW` |
 | `rule` | Spectral rule code or guideline reference (e.g. `Rule 3.3`) |
 | `path` | JSON path to the affected element (e.g. `paths./orders.post`) |

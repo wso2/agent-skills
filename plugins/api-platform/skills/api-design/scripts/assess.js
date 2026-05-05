@@ -8,7 +8,7 @@
 //
 // Usage:
 //   node assess.js \
-//     --spec <spec-file-or-"pasted"> \
+//     --spec <spec-file-path> \
 //     --skill-dir <absolute-path-to-skill> \
 //     --meta '<json-string>' \
 //     [--agent] [--security] [--design] \
@@ -163,22 +163,35 @@ function spectralPreflight() {
 }
 
 // Run `spectral lint` for one ruleset and return the parsed JSON violation array.
-// Spectral exits non-zero whenever it finds violations, so we ignore the exit code
-// and rely on stdout. An unparseable stdout (rare) is treated as a hard failure.
+// Spectral exits non-zero both when it finds violations and when it fails outright
+// (e.g. unreadable spec, broken ruleset). We disambiguate via stdout: a JSON array
+// means a successful lint; empty stdout with non-zero exit is a real failure.
 function runSpectral(specFile, ruleset) {
   const result = spawnSync(
     'spectral',
     ['lint', specFile, '--ruleset', ruleset, '--format', 'json'],
-    { stdio: ['ignore', 'pipe', 'ignore'] }
+    { stdio: ['ignore', 'pipe', 'pipe'] }
   );
-  // Spectral exits non-zero when violations are found — that's expected;
-  // we rely on the JSON output, not the exit code.
   const out = (result.stdout || Buffer.alloc(0)).toString('utf8').trim();
-  if (!out) return [];
+  const err = (result.stderr || Buffer.alloc(0)).toString('utf8').trim();
+
+  // Spectral exits non-zero in two cases: (1) violations found — stdout has
+  // the JSON array, which is expected; (2) hard failure (unreadable spec,
+  // broken ruleset) — stdout is empty. Empty stdout with a non-zero exit
+  // means a real failure, not a clean spec.
+  if (!out) {
+    if (result.status !== 0 || result.error) {
+      process.stderr.write(
+        `Spectral failed for ruleset ${ruleset}:\n${err || result.error?.message || '(no error output)'}\n`
+      );
+      process.exit(1);
+    }
+    return [];
+  }
   try {
     return JSON.parse(out);
   } catch (e) {
-    process.stderr.write(`Failed to parse Spectral output for ${ruleset}: ${e.message}\n`);
+    process.stderr.write(`Failed to parse Spectral output for ${ruleset}: ${e.message}\n${err}\n`);
     process.exit(1);
   }
 }
@@ -217,22 +230,20 @@ function isDir(p) {
 //      created when writing ai-issues.json there)
 //   2. <spec-parent>/api-reports/ if it exists (legacy convenience)
 //   3. Otherwise create <CWD>/api-reports/
-// Filename is `<spec-stem>-api-readiness-report.json`, or a generic name if the
-// spec was pasted (no real filename to derive a stem from).
+// Filename is `<spec-stem>-api-readiness-report.json`.
 function resolveOutputPath(specFile) {
   const cwd = process.cwd();
   let reportDir;
   if (isDir(path.join(cwd, 'api-reports'))) {
     reportDir = path.join(cwd, 'api-reports');
-  } else if (specFile !== 'pasted' && isDir(path.join(path.dirname(specFile), 'api-reports'))) {
+  } else if (isDir(path.join(path.dirname(specFile), 'api-reports'))) {
     reportDir = path.join(path.dirname(specFile), 'api-reports');
   } else {
     reportDir = path.join(cwd, 'api-reports');
     fs.mkdirSync(reportDir, { recursive: true });
   }
-  const stem = specFile !== 'pasted' ? path.parse(specFile).name : null;
-  const filename = stem ? `${stem}-api-readiness-report.json` : 'api-readiness-report.json';
-  return path.join(reportDir, filename);
+  const stem = path.parse(specFile).name;
+  return path.join(reportDir, `${stem}-api-readiness-report.json`);
 }
 
 // Replace a path's extension with `.html`. Used to derive the HTML report path
@@ -251,7 +262,16 @@ function generateHtml(reportData, templatePath, outputPath) {
     process.exit(1);
   }
   const template = fs.readFileSync(templatePath, 'utf8');
-  const html = template.replace('__REPORT_DATA_JSON__', JSON.stringify(reportData));
+  // Escape characters that would break out of the <script> block or be
+  // misinterpreted as JS string-literal line terminators. JSON.stringify
+  // doesn't escape `<` or U+2028/U+2029 because JSON itself doesn't require it.
+  const safeJson = JSON.stringify(reportData)
+    .replace(/</g, '\\u003c')
+    .replace(new RegExp('\\u2028', 'g'), '\\u2028')
+    .replace(new RegExp('\\u2029', 'g'), '\\u2029');
+  // Use a function replacer so `$&`, `$1`, etc. in the JSON aren't
+  // interpreted as String.replace backreferences.
+  const html = template.replace('__REPORT_DATA_JSON__', () => safeJson);
   fs.writeFileSync(outputPath, html);
 }
 

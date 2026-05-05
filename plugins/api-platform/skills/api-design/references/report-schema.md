@@ -173,7 +173,7 @@ All three sections use the same issue shape:
 
 Each section's `score.score` is an integer in `[0, 100]`, computed independently per dimension:
 
-```
+```text
 score          = round( (totalRules − Σ rulePenalty) / totalRules × 100 ), clamped to [0, 100]
 rulePenalty    = max( SEVERITY_PENALTY across that rule's violations )
 SEVERITY_PENALTY = { CRITICAL: 1.0, HIGH: 0.6, MEDIUM: 0.3, LOW: 0.15 }

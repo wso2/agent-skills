@@ -269,7 +269,7 @@ If the user has not already provided a spec, ask:
 
 Accept YAML or JSON. If given a file path, read the file. Parse silently — do not narrate this step.
 
-If the user pasted content, write it to the system temp directory under `api-readiness/openapi-assessment.yaml` (use `python3 -c "import tempfile; print(tempfile.gettempdir())"` to resolve the path) before running any Spectral commands.
+If the user pasted content, use the **Write** tool to save it as `pasted-spec.yaml` in the current working directory and pass `--spec ./pasted-spec.yaml` to `assess.js` later. A relative path keeps the Write prompt readable and works the same on macOS, Linux, and Windows. Delete the file yourself after the assess flow if the user doesn't want it kept.
 
 **Determine intent** — before proceeding, decide whether the user wants to assess or fix:
 
@@ -289,7 +289,7 @@ If the user pasted content, write it to the system temp directory under `api-rea
 
 > "What would you like to check?
 > - **API Design Guidelines** — WSO2 REST design rules (28 checks)
-> - **Security Readiness** — OWASP API Top 10 checks
+> - **Security Readiness** — OWASP-derived API security checks
 > - **AI Agent Readiness** — Spectral rules (69 checks) + AI analysis (11 guideline categories)
 >
 > You can pick one, a few, or all three."
@@ -298,51 +298,29 @@ Wait for the user's reply before proceeding.
 
 ---
 
-### AI Agent Readiness Assessment
+### Preflight — Spectral availability
 
-The AI Agent Readiness assessment has two phases. Run both phases completely before producing any output.
-
-If Security Readiness and/or Design Guidelines are also requested, run all Spectral commands (Phase 1 below plus the OWASP and/or design ruleset runs) back-to-back before starting Phase 2 — they are independent CLI calls and this avoids waiting for LLM analysis to complete first.
-
-Before starting, tell the user:
-
-> "Running AI Agent Readiness assessment — this has two phases:
-> **Phase 1 · Spectral rules** — automated checks across 69 rules (operationIds, descriptions, schemas, error responses, security, pagination, and more)
-> **Phase 2 · AI analysis** — detailed review against 11 agent-readiness guideline categories
-> This may take a moment."
-
----
-
-#### Phase 1 — Spectral Rules
-
-**Step 1: Check Spectral is installed**
+Spectral is required for every dimension (AI Agent Readiness, Security, Design). Verify it's installed *before* doing any LLM work, so a missing tool surfaces immediately instead of after a multi-minute analysis:
 
 ```bash
 spectral --version
 ```
 
-If Spectral is not found:
+If the command fails or is not found, stop and tell the user:
+
 > "Spectral CLI is required for this assessment. Install it with:
 > `npm install -g @stoplight/spectral-cli`
 > Then confirm here."
-Wait for confirmation, then re-run `spectral --version` before continuing.
 
-**Step 2: Run all Spectral checks**
-
-Pass `--agent` here, plus `--security` and/or `--design` if those dimensions are also requested — all checks run in a single script call.
-
-```bash
-python3 <absolute-path-to-skill>/scripts/run_checks.py \
-  <spec-file> \
-  <absolute-path-to-skill> \
-  --agent [--security] [--design]
-```
+Wait for confirmation, then re-run `spectral --version` before continuing. Don't proceed to LLM analysis or the `assess.js` invocation until this passes — `assess.js` has its own internal preflight as a safety net, but catching the issue here saves the LLM tokens that the AI analysis would otherwise spend.
 
 ---
 
-#### Phase 2 — LLM Analysis
+### AI Agent Readiness — LLM Analysis
 
-**Skip this phase entirely if AI Agent Readiness was not requested** (e.g. security-only or design-only run) — proceed directly to Output.
+**Skip this section entirely if AI Agent Readiness was not requested** (e.g. security-only or design-only run) — go straight to **Output**.
+
+The mechanical part (Spectral, report assembly, HTML, summary) all happens in a single `assess.js` call in **Output** below. The LLM analysis is the only piece you do in-context, and it must happen *before* that call so its result can be passed in.
 
 Tell the user:
 
@@ -350,11 +328,9 @@ Tell the user:
 
 Read `references/agent-readiness-guidelines.md` in full.
 
-Work directly from the spec content already in context — do not read the intermediate JSON files written by `run_checks.py` (the Spectral output files). Those files are for `finalize_report.py` only. Your analysis is independent of the Spectral results.
-
 Walk all 11 categories in order. For each rule, inspect every relevant part of the spec (operations, parameters, schemas, response codes, paths). Be thorough — do not skip categories even if they seem unlikely to apply.
 
-For each violation found, record an object with these fields (no `id` — the assembly script assigns IDs and sorts):
+For each violation found, record an object with these fields (no `id` — `assess.js` assigns IDs and sorts):
 
 - **`severity`**: as defined in the guidelines (CRITICAL / HIGH / MEDIUM / LOW).
 - **`rule`**: the rule reference from the guidelines, e.g. `Rule 3.3`.
@@ -363,77 +339,41 @@ For each violation found, record an object with these fields (no `id` — the as
 - **`description`**: the agent impact — what an agent will do wrong because of this violation.
 - **`fixSuggestion`**: a concise, actionable description of what to change.
 
-When all violations are found, serialize the array to a compact JSON string and hold it in context — it will be passed to `finalize_report.py` via `--ai-issues-json` in the Output section (no file write needed).
+When all violations are found, use the **Write** tool to save the array as `./api-reports/ai-issues.json` (the Write tool will create `./api-reports/` if it doesn't already exist). Pass `--ai-issues ./api-reports/ai-issues.json` to `assess.js` in the Output section. `assess.js` deletes the file after a successful run; the report stays.
+
+Why this path: it's relative (works the same on macOS, Linux, and Windows), and it goes into the same `./api-reports/` directory the final report lands in — so the path on the Write permission prompt is one the user already expects to see. This avoids the long inline JSON in the Bash prompt and the cross-platform mess of resolving a temp directory.
 
 ---
 
-### Security Readiness Assessment
+### Security Readiness & API Design Guidelines
 
-Tell the user:
-
-> "Running Security Readiness assessment — checking against OWASP API Security Top 10 rules…"
-
-The Spectral run for security is handled by `run_checks.py --security` (already called in Phase 1 above if agent readiness was also requested, or call it now if security is the only dimension):
-
-```bash
-python3 <absolute-path-to-skill>/scripts/run_checks.py \
-  <spec-file> \
-  <absolute-path-to-skill> \
-  --security
-```
-
----
-
-### API Design Guidelines Assessment
-
-Tell the user:
-
-> "Running API Design Guidelines assessment — checking against WSO2 REST design rules (28 checks)…"
-
-The Spectral run for design is handled by `run_checks.py --design` (already called in Phase 1 above if agent readiness was also requested, or call it now if design is the only dimension):
-
-```bash
-python3 <absolute-path-to-skill>/scripts/run_checks.py \
-  <spec-file> \
-  <absolute-path-to-skill> \
-  --design
-```
+These dimensions are purely mechanical — Spectral only, no LLM step. They run as part of the single `assess.js` call in **Output**. Don't pre-announce them — `assess.js` prints its own per-dimension progress lines (`Running security rules (OWASP-derived)...`, `Running design guidelines rules (WSO2 REST)...`) when it actually runs them. Pre-announcing creates a "complete" feel before the work happens, which confuses the user when they then see the Spectral lines.
 
 ---
 
 ### Output
 
-Do not produce the final report until ALL requested phases are fully complete. Brief status updates during execution (e.g. "Running AI analysis…") are fine, but do not display issue lists or JSON arrays mid-run.
+Do not produce the final report until any required LLM analysis (above) is complete. Brief status updates ("Running AI analysis…") *during* the LLM walk-through are fine; do not narrate "complete" or "generating report" *before* invoking the script — `assess.js` does the Spectral runs itself, and a premature "complete" message contradicts the lines the user is about to see.
 
-When all phases are done, tell the user:
+Invoke a single command. `assess.js` runs each requested ruleset, merges in the LLM analysis (if `--ai-issues` is given), assembles the report, generates HTML, prints a summary, and optionally opens the HTML in the browser — all in one process, one Bash approval. Spectral availability has already been verified in the **Preflight** step, so don't re-run `spectral --version` or do other defensive checks (`ls` of the script, etc.) here.
 
-> "Analysis complete — generating report…"
-
-Then run the steps below without further narration until the summary is ready.
-
-**Step 1 — Finalize report** (single script call)
-
-The script resolves the output path automatically, assembles the report, generates HTML, prints the summary, and cleans up the `api-readiness/` working folder from the system temp directory.
-
-- Pass `--ai-issues-json` only if Agent Readiness was assessed — serialize the Phase 2 violations array to a compact JSON string and pass it here directly (no file write needed). Omit it entirely for security-only or design-only runs.
-- Pass `"pasted"` for `--spec-file` if the spec was pasted rather than given as a path.
-
-Agent Readiness run (all three or agent included):
 ```bash
-python3 <absolute-path-to-skill>/scripts/finalize_report.py \
-  --spec-file <spec-file-path-or-"pasted"> \
-  --meta '{"specFile":"<path-or-pasted>","assessedAt":"<ISO-8601-UTC>","spectralVersion":"<version>","guidelinesVersion":"agent-readiness-guidelines.md","model":"claude-sonnet-4-6"}' \
+node <absolute-path-to-skill>/scripts/assess.js \
+  --spec <spec-file-path> \
   --skill-dir <absolute-path-to-skill> \
-  --ai-issues-json '<compact-json-array>'
+  --meta '{"specFile":"<path>","assessedAt":"<ISO-8601-UTC>","spectralVersion":"<version>","guidelinesVersion":"agent-readiness-guidelines.md","model":"claude-sonnet-4-6"}' \
+  [--agent] [--security] [--design] \
+  [--ai-issues ./api-reports/ai-issues.json] \
+  [--open]
 ```
 
-Security-only or design-only run (no `--ai-issues-json`):
-```bash
-python3 <absolute-path-to-skill>/scripts/finalize_report.py \
-  --spec-file <spec-file-path-or-"pasted"> \
-  --meta '{"specFile":"<path-or-pasted>","assessedAt":"<ISO-8601-UTC>","spectralVersion":"<version>","guidelinesVersion":"agent-readiness-guidelines.md","model":"claude-sonnet-4-6"}' \
-  --skill-dir <absolute-path-to-skill>
-```
+Notes:
+
+- Pass exactly the dimension flags the user requested. At least one is required.
+- `--ai-issues ./api-reports/ai-issues.json` is required when `--agent` is set — the file you wrote in the **AI Agent Readiness — LLM Analysis** section. `assess.js` deletes that file after a successful run. Omit `--ai-issues` entirely for security-only or design-only runs.
+- For pasted specs, `--spec ./pasted-spec.yaml` (the file you wrote at the top of the Assess Workflow). Otherwise, the file path the user provided.
+- `--open` opens the HTML in the default browser when running in CLI/standalone chat. Skip it inside the VS Code API Designer extension (`openInApiDesigner` handles the webview instead).
+- If Spectral is not installed, `assess.js` exits 1 with `npm install -g @stoplight/spectral-cli` as the install hint. Surface that to the user, wait for them to install, then re-run.
 
 Show the script's stdout verbatim as the response. The script prints the report and HTML paths at the end — use those for the next step.
 
@@ -445,12 +385,10 @@ Show the script's stdout verbatim as the response. The script prints the report 
 - If yes: proceed to **Fix Workflow**.
 
 **If running in CLI or standalone chat mode** (`openInApiDesigner` is not available):
-- Ask: *"Would you like to open the full HTML report in your browser?"*
-- If yes: detect the platform and run the appropriate command:
+- If you didn't already pass `--open` above, ask: *"Would you like to open the full HTML report in your browser?"* — if yes, open the HTML path that `assess.js` printed using the platform-appropriate command (no need to re-run `assess.js` — the file is already on disk):
   - macOS: `open <html-path>`
   - Linux: `xdg-open <html-path>`
   - Windows: `start <html-path>`
-  - Platform-agnostic fallback (any OS): `python3 -c "import webbrowser; webbrowser.open('<html-path>')"`
 - Then ask: *"Would you like to apply fixes to your spec?"*
 - If yes: proceed to **Fix Workflow**.
 
@@ -565,6 +503,6 @@ Read these when needed — don't load all of them upfront:
 - `references/wso2-rest-api-design-guidelines.md` — WSO2 7-step design process, resource taxonomy, URI rules, HTTP semantics, special behaviour, errors; read at the start of the Design Workflow
 - `references/agent-readiness-guidelines.md` — 11 LLM analysis categories for AI Agent Readiness (Phase 2)
 - `references/ai-readiness-metadata.json` — metadata for 69 Spectral AI-readiness rules
-- `references/owasp-top-10-metadata.json` — metadata for OWASP API Top 10 security rules
+- `references/owasp-top-10-metadata.json` — metadata for the OWASP-derived API security rules
 - `references/wso2-design-guidelines-metadata.json` — metadata for WSO2 REST design rules
 - `references/report-schema.md` — JSON report structure documentation

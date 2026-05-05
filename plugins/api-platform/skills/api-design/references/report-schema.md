@@ -63,7 +63,7 @@ Results from running Spectral with the `ai-readiness.yaml` ruleset (69 automated
     "high": 5,
     "medium": 3,
     "low": 8,
-    "rating": "Fair"
+    "score": 73
   },
   "issues": [ ... ]
 }
@@ -81,7 +81,7 @@ Results from the LLM-based guideline review (11 categories from `agent-readiness
     "high": 2,
     "medium": 0,
     "low": 1,
-    "rating": "Fair"
+    "score": 73
   },
   "issues": [ ... ]
 }
@@ -104,7 +104,7 @@ Present only when a Security Readiness assessment was requested.
         "high": 3,
         "medium": 0,
         "low": 0,
-        "rating": "Good"
+        "score": 88
       },
       "issues": [ ... ]
     }
@@ -129,7 +129,7 @@ Present only when an API Design Guidelines assessment was requested. Spectral-on
         "high": 2,
         "medium": 4,
         "low": 1,
-        "rating": "Good"
+        "score": 88
       },
       "issues": [ ... ]
     }
@@ -169,13 +169,27 @@ All three sections use the same issue shape:
 
 ---
 
-## Score / Rating Table
+## Score
 
-Applied independently to each section:
+Each section's `score.score` is an integer in `[0, 100]`, computed independently per dimension:
 
-| Rating    | Condition                                    |
-|-----------|----------------------------------------------|
-| Poor      | ≥ 3 CRITICAL issues                          |
-| Fair      | 1–2 CRITICAL, OR 0 CRITICAL + ≥ 5 HIGH       |
-| Good      | 0 CRITICAL + 1–4 HIGH                        |
-| Excellent | 0 CRITICAL + 0 HIGH                          |
+```
+score          = round( (totalRules − Σ rulePenalty) / totalRules × 100 ), clamped to [0, 100]
+rulePenalty    = max( SEVERITY_PENALTY across that rule's violations )
+SEVERITY_PENALTY = { CRITICAL: 1.0, HIGH: 0.6, MEDIUM: 0.3, LOW: 0.15 }
+```
+
+Multiple violations of the same rule contribute at most one rule's worth of penalty
+(the worst-severity one), so issue counts and the score don't diverge artificially
+when one bad rule produces many findings.
+
+`totalRules` per dimension:
+
+| Dimension                        | Total | Source |
+|----------------------------------|------:|---|
+| `agentReadiness.spectral`        | 69    | `references/ai-readiness-metadata.json` (one entry per rule) |
+| `agentReadiness.aiAnalysis`      | 26    | `### Rule N.M` headings counted in `references/agent-readiness-guidelines.md` |
+| `securityReadiness.spectral`     | 15    | `references/owasp-top-10-metadata.json` (one entry per rule) |
+| `designReadiness.spectral`       | 28    | `references/wso2-design-guidelines-metadata.json` (one entry per rule) |
+
+> **Maintainer note — adding or removing rules.** `assess.js` reads these counts at runtime, so the score formula picks up new totals automatically the next time you run an assessment. The numbers in the table above are documentation only — when you add or remove rules, **update this table** so it doesn't drift from reality. If you add a brand-new dimension (a fourth Spectral ruleset, say), document its `totalRules` source the same way and add a row. Don't hard-code rule counts anywhere in `assess.js` — keep them derived from the source files.

@@ -21,7 +21,7 @@ Three sequential phases:
 
 ## Key Reference Files
 
-- `skills/api-design/references/` — WSO2 REST design guidelines, agent-readiness rules, OWASP Top 10
+- `skills/api-design/references/` — WSO2 REST design guidelines, agent-readiness rules, OWASP-derived security rules
 - `skills/api-design/scripts/` — Spectral rule runners and report generators
 - `skills/api-design/assets/` — spec templates and fixtures used during the Design workflow
 - `skills/api-publish/references/` — `ap` CLI reference, RestApi YAML examples, Docker networking guide

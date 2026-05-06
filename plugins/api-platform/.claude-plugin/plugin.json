@@ -1,6 +1,6 @@
 {
   "name": "api-platform",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Skills for the WSO2 API Platform — design, assess, and fix OpenAPI specs for AI agent readiness, security, and design quality; then set up, publish, and manage APIs through the WSO2 API Gateway using the ap CLI.",
   "author": {
     "name": "WSO2",

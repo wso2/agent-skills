@@ -71,10 +71,12 @@
       flex-wrap: wrap;
       opacity: 0.85;
     }
-    .card-poor    { background: #fde8e8; color: #b91c1c; }
-    .card-fair    { background: #fef3cd; color: #b45309; }
-    .card-good    { background: #dcfce7; color: #15803d; }
-    .card-excellent { background: #dbeafe; color: #1d4ed8; }
+    /* Score-band colours (mirrors SCORE_BANDS in api-governance/html-report.js):
+       ≥ 90 green, ≥ 75 blue, ≥ 50 yellow, < 50 red. */
+    .card-score-90 { background: #dcfce7; color: #15803d; }
+    .card-score-75 { background: #dbeafe; color: #1d4ed8; }
+    .card-score-50 { background: #fef3cd; color: #b45309; }
+    .card-score-0  { background: #fde8e8; color: #b91c1c; }
 
     /* ── Page body ──────────────────────────────────────────── */
     .content {
@@ -229,7 +231,11 @@
     .badge-high     { background: #fef3cd; color: #b45309; }
     .badge-medium   { background: #fef9c3; color: #854d0e; }
     .badge-low      { background: #dbeafe; color: #1e40af; }
-    .badge-rating   { padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 700; }
+    .badge-score    { padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 700; }
+    .badge-score-90 { background: #dcfce7; color: #15803d; }
+    .badge-score-75 { background: #dbeafe; color: #1d4ed8; }
+    .badge-score-50 { background: #fef3cd; color: #b45309; }
+    .badge-score-0  { background: #fde8e8; color: #b91c1c; }
 
     /* ── Empty state ────────────────────────────────────────── */
     .empty-state {
@@ -269,12 +275,14 @@ const reportData = __REPORT_DATA_JSON__;
 (function () {
   const SEVERITY_ORDER = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
 
-  function ratingClass(rating) {
-    const r = (rating || '').toLowerCase();
-    if (r === 'poor') return 'card-poor';
-    if (r === 'fair') return 'card-fair';
-    if (r === 'good') return 'card-good';
-    return 'card-excellent';
+  // Score → band suffix used by both .card-score-* and .badge-score-* classes.
+  // Bands mirror SCORE_BANDS in api-governance/html-report.js.
+  function scoreBand(score) {
+    const n = Number.isFinite(score) ? score : 0;
+    if (n >= 90) return '90';
+    if (n >= 75) return '75';
+    if (n >= 50) return '50';
+    return '0';
   }
 
   function severityBadgeClass(sev) {
@@ -284,14 +292,6 @@ const reportData = __REPORT_DATA_JSON__;
       case 'MEDIUM':   return 'badge-medium';
       default:         return 'badge-low';
     }
-  }
-
-  function ratingBadgeClass(rating) {
-    const r = (rating || '').toLowerCase();
-    if (r === 'poor') return 'badge-critical';
-    if (r === 'fair') return 'badge-high';
-    if (r === 'good') return 'badge-medium';
-    return 'badge-low';
   }
 
   function esc(str) {
@@ -407,7 +407,8 @@ const reportData = __REPORT_DATA_JSON__;
     if (!sectionData) return null;
     const issues = sectionData.issues || [];
     const score  = sectionData.score  || {};
-    const rating = score.rating || 'Unknown';
+    const scoreNum = Number.isFinite(score.score) ? score.score : 0;
+    const band = scoreBand(scoreNum);
 
     const section = document.createElement('div');
     section.className = 'section';
@@ -423,7 +424,7 @@ const reportData = __REPORT_DATA_JSON__;
         </div>
       </div>
       <div class="section-header-right">
-        <span class="badge badge-rating ${ratingBadgeClass(rating)}">${esc(rating)}</span>
+        <span class="badge badge-score badge-score-${band}">${scoreNum}%</span>
         <svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
       </div>`;
     header.addEventListener('click', () => section.classList.toggle('collapsed'));
@@ -477,13 +478,14 @@ const reportData = __REPORT_DATA_JSON__;
     ].filter(s => s.data);
 
     sections.forEach(({ label, data }) => {
-      const score  = data.score  || {};
-      const rating = score.rating || 'Unknown';
-      const card   = document.createElement('div');
-      card.className = `summary-card ${ratingClass(rating)}`;
+      const score    = data.score  || {};
+      const scoreNum = Number.isFinite(score.score) ? score.score : 0;
+      const band     = scoreBand(scoreNum);
+      const card     = document.createElement('div');
+      card.className = `summary-card card-score-${band}`;
       card.innerHTML = `
         <div class="card-label">${esc(label)}</div>
-        <div class="card-rating">${esc(rating)}</div>
+        <div class="card-rating">${scoreNum}%</div>
         <div class="card-counts">${esc(countsByScore(score))}</div>`;
       strip.appendChild(card);
     });

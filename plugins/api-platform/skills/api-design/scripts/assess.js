@@ -384,7 +384,13 @@ function main() {
 
   spectralPreflight();
 
-  const meta = JSON.parse(values.meta);
+  let meta;
+  try {
+    meta = JSON.parse(values.meta);
+  } catch (e) {
+    process.stderr.write(`Error: --meta is not valid JSON: ${e.message}\n`);
+    process.exit(1);
+  }
   const report = { meta };
 
   // ---- Spectral runs ----

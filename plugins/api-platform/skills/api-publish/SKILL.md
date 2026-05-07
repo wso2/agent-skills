@@ -358,7 +358,6 @@ This is an auto-generated table of every available policy with a one-line descri
 Workflow:
 1. Fetch the catalog above. Find the row for what the user wants.
 2. Follow the link in that row to the policy's markdown. Use its YAML and `params` to write the policy block in the RestApi spec.
-3. The policy version is the `vX.Y` segment in the link path (e.g., `/set-headers/v1.0/...`). Use that as `version:` in your YAML.
 
 For the meta-question of how policies attach to a RestApi (`build.yaml` shape) or how to author a custom policy in Go or Python, see the 1.1 docs — only fetch these if the user is building their own policy, not when applying an existing one:
 - Policy customization model: `https://raw.githubusercontent.com/wso2/api-platform/ap-docs-0.8.x/docs/cli/customizing-gateway-policies.md`

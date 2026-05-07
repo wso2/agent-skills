@@ -38,8 +38,8 @@ Docs live on two release-line branches in `wso2/api-platform`. Use these — don
 - CLI docs → `ap-docs-0.8.x` (ap CLI 0.8.x release line)
 
 - **Gateway docs**: `https://github.com/wso2/api-platform/tree/gw-docs-1.1.x/docs/gateway` — covers Kubernetes, observability, resiliency, analytics, policies, immutable gateway, policy languages and runtimes
-- **Gateway REST API docs**: `https://github.com/wso2/api-platform/tree/gw-docs-1.1.x/docs/rest-apis/gateway` — covers all admin REST API endpoints (auth, API key management, secrets, certificates)
-- **Individual REST API doc files**: `https://raw.githubusercontent.com/wso2/api-platform/gw-docs-1.1.x/docs/rest-apis/gateway/<filename>.md` — fetch the specific file when you need endpoint details (e.g. `rest-api-management.md`, `authentication.md`, `secrets-management.md`)
+- **Gateway REST API docs**: `https://github.com/wso2/api-platform/tree/gw-docs-1.1.x/docs/rest-apis/gateway` — covers the management REST API endpoints (operations on a RestApi and any state nested under it, plus controller-wide concerns like auth, secrets, certificates)
+- **Individual REST API doc files**: live under `https://github.com/wso2/api-platform/tree/gw-docs-1.1.x/docs/rest-apis/gateway/`. **Don't extrapolate filenames.** List the directory (or fetch its `README.md`) first, then fetch the specific raw URL. Filenames aren't one-per-feature — a single page often covers operations on a parent resource together with management of state nested under it. When a policy doc deflects with *"… is handled outside this runtime policy"* and gives no link, the answer almost always lives somewhere in this tree.
 - **CLI docs**: `https://github.com/wso2/api-platform/tree/ap-docs-0.8.x/docs/cli` — `reference.md`, `quick-start-guide.md`, `customizing-gateway-policies.md`
 
 ---
@@ -353,43 +353,16 @@ What would you like to configure?
 
 `https://raw.githubusercontent.com/wso2/gateway-controllers/main/docs/README.md`
 
-This is an auto-generated table of every available policy with a one-line description and a **direct, resolved link** to its markdown reference (params, YAML examples, defaults). The catalog is the source of truth — don't crawl `/contents/docs/<policy>/<version>/docs/...` to discover filenames. They're inconsistent (`api-key-auth/v1.0/docs/apikey-authentication.md` drops a hyphen; `regex-guardrail/v1.0/docs/regex.md` is truncated) and the catalog has them resolved.
+This is an auto-generated table of every available policy with a one-line description and a **direct, resolved link** to its markdown reference (params, YAML examples, defaults). The catalog is the source of truth — **use its links verbatim**. Don't rewrite raw URLs by hand even when you've seen the filename before; the full path is `…/wso2/gateway-controllers/main/docs/<policy>/<version>/docs/<filename>.md` and the leading `docs/` segment is easy to drop. Filenames are also inconsistent (some drop punctuation, others are truncated relative to the policy name), so reconstructing from a policy name guesses two things wrong at once. Click through from the catalog row instead.
 
 Workflow:
 1. Fetch the catalog above. Find the row for what the user wants.
 2. Follow the link in that row to the policy's markdown. Use its YAML and `params` to write the policy block in the RestApi spec.
-3. The policy version is the `vX.Y` segment in the link path (e.g., `/api-key-auth/v1.0/...`). Use that as `version:` in your YAML.
+3. The policy version is the `vX.Y` segment in the link path (e.g., `/set-headers/v1.0/...`). Use that as `version:` in your YAML.
 
 For the meta-question of how policies attach to a RestApi (`build.yaml` shape) or how to author a custom policy in Go or Python, see the 1.1 docs — only fetch these if the user is building their own policy, not when applying an existing one:
 - Policy customization model: `https://raw.githubusercontent.com/wso2/api-platform/ap-docs-0.8.x/docs/cli/customizing-gateway-policies.md`
 - Runtime support: `https://raw.githubusercontent.com/wso2/api-platform/gw-docs-1.1.x/docs/gateway/policy-languages-and-runtimes.md`
-
-### Post-deployment steps for `api-key-auth`
-
-There is **no `ap` CLI command** for API key management — don't waste time on `ap gateway --help` or `ap gateway rest-api --help`. Call the management REST API on port 9090 directly.
-
-Get the API's `id` first (it's the `metadata.name` of the deployed RestApi, e.g. `reading-list-api-v1.0`), then:
-
-```bash
-# Generate a new API key
-curl -X POST http://localhost:9090/api/management/v0.9/rest-apis/<id>/api-keys \
-  -u admin:admin \
-  -H 'Content-Type: application/json' \
-  -d '{"name": "<key-name>"}'
-```
-
-The response contains an `apiKey.apiKey` field — a string starting with `apip_`. Hand it to the user; the gateway won't show it again. Callers send it as `Authorization: Bearer <key>` (or whatever the `api-key-auth` policy params specify).
-
-Other API-key operations (list / regenerate / update / delete) follow the same `/{id}/api-keys[...]` pattern — section anchors in the source doc:
-- List: `#get-the-list-of-api-keys-for-an-api`
-- Regenerate: `#regenerate-an-api-key`
-- Update API key with new regenerated value: `#update-an-api-key-with-a-new-regenerated-value`
-- Revoke API key: `#revoke-an-api-key`
-
-Source (1000+ lines — jump to the anchor, don't read top-to-bottom):
-`https://raw.githubusercontent.com/wso2/api-platform/gw-docs-1.1.x/docs/rest-apis/gateway/rest-api-management.md`
-
----
 
 ### Gateway ports (local Docker)
 

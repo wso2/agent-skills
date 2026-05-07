@@ -33,17 +33,6 @@ ap gateway api get
 ap gateway api delete
 ```
 
-### Operations the CLI does NOT cover — call the REST API directly
-
-Don't run `ap gateway --help` / `ap gateway rest-api --help` looking for these; they aren't there. Call the management REST API on port 9090 (basic auth, default `admin:admin`).
-
-| Operation | Endpoint | SKILL.md section |
-|-----------|----------|------------------|
-| Generate / list / regenerate / update / delete API keys (for `api-key-auth`) | `POST/GET/PUT/DELETE /api/management/v0.9/rest-apis/{id}/api-keys[...]` | "Post-deployment steps for `api-key-auth`" |
-| JWT IDP configuration, other per-policy runtime config | various `/api/management/v0.9/rest-apis/{id}/...` | "Post-deployment steps for other policies" |
-
-Full reference: `https://raw.githubusercontent.com/wso2/api-platform/gw-docs-1.1.x/docs/rest-apis/gateway/rest-api-management.md` (1000+ lines; jump to anchors).
-
 ---
 
 ## Supplements (not in official docs)

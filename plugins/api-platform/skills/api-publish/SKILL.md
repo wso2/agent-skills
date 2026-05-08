@@ -209,9 +209,9 @@ node <absolute-path-to-skill>/scripts/init-local-cli-config.js
 ```
 
 The script prints one summary line:
-- `cli config initialized at ~/.wso2ap/config.yaml (created)` — fresh write; continue.
-- `cli config initialized at ~/.wso2ap/config.yaml (local-already-registered)` — `dev` entry already present from a prior session; continue.
-- Non-zero exit with a message starting `~/.wso2ap/config.yaml already exists with other gateway entries` — the user already has unrelated gateway entries the script won't touch. Surface the script's printed `ap gateway add ...` instruction to the user and have them run it themselves.
+- Stdout containing `cli config initialized at <path-to-config.yaml> (created)` — fresh write; continue.
+- Stdout containing `cli config initialized at <path-to-config.yaml> (local-already-registered)` — `dev` entry already present from a prior session; continue.
+- Non-zero exit with a message containing `config.yaml already exists with other gateway entries` — the user already has unrelated gateway entries the script won't touch. Surface the script's printed `ap gateway add ...` instruction to the user and have them run it themselves.
 
 After the script succeeds, the agent continues — no user input needed.
 

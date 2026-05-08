@@ -74,14 +74,15 @@ Before saying anything, run these checks:
 # Check CLI is available
 which asgardeo
 
-# Determine CLI auth state — three possible outcomes:
-#   EXIT 0 + JSON output  → authenticated, parse org name from output
-#   EXIT non-zero, error mentions "no profile" or "not configured" → no profile exists
-#   EXIT non-zero, error mentions "unauthorized" / "token expired"  → profile exists but session expired
+# Determine CLI auth state — possible outcomes:
+#   EXIT 0 + JSON with "token_valid": true   → authenticated
+#   EXIT 0 + JSON with "token_valid": false  → profile exists but session expired (silent — no error printed)
+#   EXIT non-zero, "no profile" / "not configured" → no profile exists
+#   EXIT non-zero, "unauthorized" / "token expired"  → session expired
 asgardeo whoami --output json 2>&1
 
-# List existing profiles (helps distinguish "no profile" from "wrong active profile")
-asgardeo config list 2>/dev/null
+# List configured orgs (helps distinguish "no profile" from "wrong active profile")
+asgardeo config list-orgs 2>/dev/null
 
 # Detect framework from package.json if it exists
 cat package.json 2>/dev/null
@@ -91,9 +92,11 @@ Classify the CLI state as one of:
 
 | State | Symptom | Action needed |
 |---|---|---|
-| **Authenticated** | `whoami` returns JSON with org | Nothing — skip Phase 1 |
-| **Session expired** | `whoami` fails with auth/token error, but `config list` shows a profile | `asgardeo auth login` only |
-| **No profile** | `whoami` fails and `config list` is empty or missing | `asgardeo config create` + `asgardeo auth login` |
+| **Authenticated** | `whoami` exits 0 with `"token_valid": true` | Nothing — skip Phase 1 |
+| **Session expired** | `whoami` exits non-zero (`token_valid: false` in the JSON, or an auth/token error), and `config list-orgs` shows an org | `asgardeo auth refresh` (or `asgardeo auth login`) |
+| **No profile** | `whoami` fails and `config list-orgs` is empty or missing | `asgardeo config create` + `asgardeo auth login` |
+
+> `asgardeo whoami` returns a non-zero exit code when the token is missing or expired, so scripts can gate on it directly. For M2M-configured orgs, `asgardeo auth refresh` is silent and instant; fall back to `asgardeo auth login` only if refresh fails.
 
 Also read:
 - `package.json` — framework detection (look for `next`, `react`, `vue`, `express`)
@@ -227,7 +230,7 @@ $ASGARDEO_BIN --version
 ```bash
 # 2. Check auth state
 asgardeo whoami --output json 2>&1
-asgardeo config list 2>/dev/null
+asgardeo config list-orgs 2>/dev/null
 ```
 
 Branch based on the result:
@@ -240,9 +243,13 @@ Nothing to do. Skip to Phase 2.
 
 ---
 
-**State B — Profile exists but session expired** (`config list` shows a profile, `whoami` fails with auth/token error)
+**State B — Profile exists but session expired** (`config list-orgs` shows an org; `whoami` exits non-zero with `token_valid: false` or an auth/token error)
 
 ```bash
+# For M2M-configured orgs, refresh is silent and instant
+asgardeo auth refresh
+
+# If refresh fails, fall back to a full login
 asgardeo auth login
 ```
 
@@ -259,7 +266,7 @@ asgardeo whoami
 
 ---
 
-**State C — No profile configured** (`config list` is empty or `whoami` fails with "no profile" / "not configured")
+**State C — No profile configured** (`config list-orgs` is empty or `whoami` fails with "no profile" / "not configured")
 
 Ask the user for:
 - **Org name** — the slug of their Asgardeo organization (e.g. `myorg`)
@@ -319,6 +326,8 @@ Use this field mapping when deriving values from the user's framework and intent
 | Callback + post-logout (SPA) | `redirect_uris` | A single regex entry — see below |
 | Callback only (server-side) | `redirect_uris` | Framework default or user-provided value |
 | Dev server URL | `allowed_origins` | Derived from redirect URI base (e.g. `http://localhost:5173`) |
+| Backend JWKS verification | `access_token.type` | `JWT` (default is opaque) |
+| Group membership | `groups[].members` | `["DEFAULT/<username>", ...]` (userstore prefix required) |
 
 **Important:** Asgardeo rejects multiple plain `redirect_uris` entries with API error 501 (`Multiple callbacks for OAuth2 are not supported yet`). For SPAs that need both a login callback (`/callback`) **and** a post-logout redirect (the app base URL), register them as a single regex entry:
 
@@ -338,46 +347,44 @@ Always prepend a comment block at the top of the written config file with the ex
 #   asgardeo apply --non-interactive
 #
 # Then retrieve the OAuth2 consumer key for SDK configuration:
-#   asgardeo app list --output json                          # get the app UUID
-#   asgardeo app get --app-id <app_uuid> --credentials       # get clientId (table output only)
+#   asgardeo app get --name "<app-name>" --credentials --output json
 ```
 
-#### 2d — Apply the config to Asgardeo
+#### 2d — Preview and apply the config to Asgardeo
 
 ```bash
-asgardeo apply --non-interactive
+# Optional: preview what will change before applying
+asgardeo plan --config .asgardeo/config-<profile>.yaml
+
+# Apply everything in the config file (apps + users + groups)
+asgardeo apply --config .asgardeo/config-<profile>.yaml --non-interactive
 ```
 
-> **Critical:** Always use `--non-interactive`. Without it, `asgardeo apply` prompts for Y/n confirmation using a Go survey library that requires a real TTY. Piping `yes`, `script`, `expect`, and pty wrappers all fail — the library sends ANSI cursor-position queries (`[6n`) that crash with a nil-pointer panic when no TTY is present. `--non-interactive` bypasses the prompt entirely.
+> Pass `--non-interactive` whenever you want to skip the Y/n confirmation prompt (CI, scripts, or any time you've already reviewed the plan). The CLI also auto-detects when stdin isn't a TTY and switches to non-interactive mode automatically — `--non-interactive` is no longer required to avoid a crash, just to skip the prompt.
 
-This reconciles the declared state in all `config-<profile>.yaml` files with the live org — creating or updating applications, users, and groups as needed. CORS (`allowed_origins`) is also applied at this step.
+`apply` reconciles the declared state with the live org — creating or updating applications, users, groups, **and group membership** as needed. CORS (`allowed_origins`) is also applied at this step. Users are created `active: true` by default and can log in immediately. Set `password:` on each user spec when running `--non-interactive`; without an explicit password the run aborts (Asgardeo's auto-generated passwords routinely fail its own complexity policy).
+
+The `--apps`, `--users`, `--groups` flags are **filters**, not include-flags — pass them only when you want to apply a subset (e.g. `--apps` to apply applications only). The default (no filter) applies everything in the file.
 
 ### Phase 2.5: Retrieve the OAuth2 Consumer Key
 
-After `asgardeo apply --non-interactive`, retrieve the consumer key and client secret for SDK configuration.
+After `asgardeo apply --non-interactive`, retrieve the consumer key for SDK configuration. Look up by app name directly — no need to chain `app list` + `app get`:
 
 ```bash
-# Get the app UUID for the registered app
-asgardeo app list --output json
-
-# Use the UUID to fetch the OAuth2 credentials (table format only — --output json omits credentials)
-asgardeo app get --app-id <app_uuid> --credentials
+asgardeo app get --name "<app_name>" --credentials --output json
 ```
 
-Parse from the table output:
-- `Client Id` → the OAuth2 consumer key (e.g. `_lyx0w0mukGTj2zFyU7haM1euQIa`) — use this in SDK config
-- `Client Secret` → the client secret (only present for `confidential` apps; empty or absent for `public` apps)
+Parse from the JSON:
+- `client_id` → the OAuth2 consumer key (e.g. `_lyx0w0mukGTj2zFyU7haM1euQIa`) — use this in SDK config
+- `client_secret` → the client secret (only present for `confidential` apps; empty for `public` apps)
 
-> **Important:** The `id` from `app list` is the app's internal UUID used only in CLI commands. The `Client Id` from `--credentials` is the OAuth2 consumer key used in SDK config. They are different values.
->
-> **Note:** `--credentials` only works with the default table output. Adding `--output json` or `--output yaml` omits credentials entirely.
+> **Important:** The `id` from `app list` is the app's internal UUID used only in CLI commands. The `client_id` from `--credentials` is the OAuth2 consumer key used in SDK config. They are different values.
 
 In the SDK integration file (e.g. `main.tsx`, `layout.tsx`, `main.ts`), add an inline comment at the `clientId` placeholder so the user knows exactly how to retrieve it:
 
 ```ts
-// Replace with your OAuth2 consumer key — retrieve it after `asgardeo apply --non-interactive`:
-//   asgardeo app list --output json                          # get the app UUID
-//   asgardeo app get --app-id <uuid> --credentials           # parse Client Id from table output
+// Replace with your OAuth2 consumer key — retrieve it after `asgardeo apply`:
+//   asgardeo app get --name "<app_name>" --credentials --output json
 clientId: "<consumer-key-placeholder>",
 ```
 
@@ -438,16 +445,13 @@ Read `package.json` dependencies and devDependencies:
 ## Known Gotchas
 
 ### clientId is the consumer key, not the app UUID
-`asgardeo app list` returns a UUID (e.g. `26ba5b0c-...`) — this is the internal identifier used only in CLI commands. The SDK `clientId` is the OAuth2 **consumer key** (e.g. `_lyx0w0mukGTj2zFyU7haM1euQIa`) retrieved via `asgardeo app get --app-id <uuid> --credentials`. Always use the consumer key in SDK configuration.
+`asgardeo app list` returns a UUID (e.g. `26ba5b0c-...`) — this is the internal identifier used only in CLI commands. The SDK `clientId` is the OAuth2 **consumer key** (e.g. `_lyx0w0mukGTj2zFyU7haM1euQIa`) retrieved via `asgardeo app get --name "<app>" --credentials --output json`. Always use the consumer key in SDK configuration.
 
 ### Use `client_type: public` for SPAs
 Browser-based apps (SPA) should always use `client_type: public` in the config file. Public clients use PKCE — no `clientSecret` needed in the SDK config. If you omit `client_type` or set it to `confidential`, `asgardeo app get --credentials` may show an empty client secret, and the token endpoint will return a Basic Auth challenge (browser shows a popup). Only use `confidential` for server-side apps that can securely store a secret.
 
-### `asgardeo apply` requires `--non-interactive`
-The CLI's `apply` command prompts for Y/n confirmation using a Go survey library that requires a real TTY. In non-TTY environments (piped input, subprocesses, CI), the library sends ANSI cursor-position queries (`[6n`) that cause a nil-pointer panic. `yes |`, `script`, `expect`, and pty wrappers all fail. Always use `asgardeo apply --non-interactive` to bypass the prompt.
-
-### `app get --credentials` only works with table output
-`asgardeo app get --app-id <uuid> --credentials` shows credentials (clientId, clientSecret) only in the default table format. Adding `--output json` or `--output yaml` omits the credentials entirely. Always use table output when retrieving credentials, and parse the values from the table text.
+### `asgardeo apply` and the `--non-interactive` flag
+`asgardeo apply` prompts for a Y/n confirmation by default. The CLI auto-detects when stdin isn't a TTY (piped input, subprocesses, CI) and switches to non-interactive mode automatically — so it no longer panics in those environments. Pass `--non-interactive` explicitly when you want to skip the prompt even from a real terminal (recommended for scripted runs).
 
 ### CORS blocks all SDK calls by default
 A freshly applied Asgardeo app with no `allowed_origins` will have every browser SDK request (`token`, `jwks`, `userinfo`, `scim2`) blocked by CORS. Always set `allowed_origins` in `config-<profile>.yaml` before running `asgardeo apply --non-interactive`.
@@ -472,6 +476,39 @@ Asgardeo's app provisioning API returns error 501 "Multiple callbacks for OAuth2
 
 ### Logout fails if `afterSignOutUrl` isn't a registered redirect URI
 Asgardeo enforces OIDC's rule that `post_logout_redirect_uri` must match a registered redirect URI on the app. If the SDK is configured with `afterSignOutUrl="http://localhost:5173"` but only `http://localhost:5173/callback` is registered, logout fails with "OAuth Processing Error". The regex pattern above prevents this — both URIs match the single registered entry.
+
+### Re-auth when `whoami` fails
+`asgardeo whoami` exits non-zero when the token is missing or expired (and the JSON shows `"token_valid": false`). On a non-zero exit, run `asgardeo auth refresh` (silent, M2M-only); fall back to `asgardeo auth login` if refresh fails.
+
+### SCIM2 group display names are prefixed with the userstore
+SCIM2 returns group names as `DEFAULT/admin` (or `<userstore>/<name>`), not bare `admin`. A naive `groups.includes("admin")` check silently fails — the user logs in but role-gated UI never appears. Strip everything before the last `/` when comparing:
+
+```ts
+const groupNames = (groups ?? []).map((g) => g.display.split("/").pop());
+if (groupNames.includes("admin")) { /* ... */ }
+```
+
+### Asgardeo issues opaque access tokens by default — set `access_token_type: JWT` for backend verification
+Out of the box, Asgardeo issues opaque (UUID-like) access tokens. Backends that try to verify tokens via JWKS will reject every request with `401 Invalid or expired token`. Frontend-only flows (SPA + Asgardeo's userinfo/SCIM2) work with opaque tokens, but the moment a backend needs to verify the token locally, JWT is required.
+
+Whenever the user mentions a backend, API gateway, Express integration, or token validation, set the access token type to JWT:
+
+```yaml
+# In .asgardeo/config-<profile>.yaml
+applications:
+  - name: MyApp
+    client_type: public
+    access_token_type: JWT       # Default | JWT — opt into JWT for JWKS verification
+    redirect_uris:
+      - regexp=(http://localhost:5173(/callback)?)
+```
+
+Or via CLI flags directly:
+
+```bash
+asgardeo app create --name "MyApp" --public --access-token-type JWT ...
+asgardeo app update --name "MyApp" --access-token-type JWT
+```
 
 ### `useUser()` may not surface SCIM2 fields in some SDK versions
 In some versions of `@asgardeo/react` (observed in 0.23.3), `useUser()` returns only org-level claims (`org_id`, `org_name`, `org_handle`) even when `internal_login` is in scopes and `/scim2/Me` returns the full profile correctly. If `profile?.givenName` and `flattenedProfile?.emails` come back empty after a successful sign-in, fall back to calling SCIM2 directly:

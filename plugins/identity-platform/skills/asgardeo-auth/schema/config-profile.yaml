@@ -30,6 +30,11 @@ applications:
       - account_switch
       - organization_switch
       - urn:ietf:params:oauth:grant-type:token-exchange
+    access_token:            # Optional. OIDC access-token settings. Omit for Asgardeo defaults.
+      type: <string>         # "Default" (opaque) or "JWT". Use "JWT" for backends doing JWKS verification.
+      user_access_token_expiry_in_seconds: <int>          # Optional. User-bound access token TTL.
+      application_access_token_expiry_in_seconds: <int>   # Optional. client_credentials access token TTL.
+      binding_type: <string> # Optional. "None" | "cookie" | "ssoSession" | "certificate".
 
 # Optional. Users to provision in the org.
 users:
@@ -37,7 +42,10 @@ users:
     email: <string>          # Optional. User's email address.
     given_name: <string>     # Optional. First name.
     family_name: <string>    # Optional. Last name.
+    active: <bool>           # Optional. Defaults to true on create. Set false for a disabled account.
 
 # Optional. Groups to provision in the org.
 groups:
   - name: <string>           # Required. Group display name.
+    members:                 # Optional. Group members. Each entry is "<userstore>/<username>", e.g. "DEFAULT/alice".
+      - <string>             #   Userstore prefix is required — bare usernames will not match.

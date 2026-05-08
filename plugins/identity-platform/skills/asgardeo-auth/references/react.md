@@ -85,8 +85,36 @@ export default App;
 ## 4. Handle the callback route
 
 If using React Router, add a route for the redirect URI path (e.g., `/callback`).
-`@asgardeo/react` handles the callback automatically when the provider mounts —
-no custom callback component is needed unless you want a custom loading screen.
+`@asgardeo/react` handles the OAuth2 state exchange automatically when the provider mounts.
+
+> **Watch out for catch-all routes.** A `<Route path="*" element={<Navigate to="/" />} />`
+> placed before (or instead of) the `/callback` route will swallow the redirect from
+> Asgardeo and strip the `?code=...&state=...` query string before the SDK can read it,
+> so sign-in silently fails. Always declare the explicit `/callback` route (and any
+> other routes the app needs) **before** the catch-all entry, or render the same root
+> component on every path and let the SDK handle the exchange in place.
+
+**However:** the SDK does **not** navigate away from `/callback` after sign-in completes. If the route renders a static spinner, the user is stuck on `/callback` forever even though `isSignedIn` has flipped to `true`. The callback component must redirect itself once `isSignedIn` is true:
+
+```tsx
+// src/Callback.tsx
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAsgardeo } from "@asgardeo/react";
+
+export default function Callback() {
+  const { isSignedIn, isLoading } = useAsgardeo();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isLoading && isSignedIn) navigate("/", { replace: true });
+  }, [isLoading, isSignedIn, navigate]);
+
+  return <p>Signing you in...</p>;
+}
+```
+
+If the app has no `/callback` route at all (single-page apps that render the same component on every path), the SDK's automatic handling is enough — but most apps with a router need this redirect.
 
 ## 5. SCIM2 fallback (only if `useUser()` returns empty profile)
 

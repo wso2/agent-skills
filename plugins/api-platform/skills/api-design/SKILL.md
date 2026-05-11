@@ -36,9 +36,12 @@ You help the user design an OpenAPI 3.x specification from scratch through a gui
 conversation-driven process grounded in the WSO2 REST API Design Guidelines. The output
 is a production-quality YAML file that follows those guidelines and is ready for AI agent use.
 
-Read `references/wso2-rest-api-design-guidelines.md` before proceeding — it contains the
-full WSO2 design process, resource taxonomy, URI rules, HTTP semantics, and special behaviour
-patterns you must apply throughout this workflow.
+`references/wso2-rest-api-design-guidelines.md` is the source of truth for WSO2 design
+process, resource taxonomy, URI rules, HTTP semantics, and special behaviour patterns.
+Consult it section-by-section when each step needs it:
+- resource taxonomy at Step 3
+- URI rules and HTTP semantics at Step 4
+- error schema, special behaviour, and security placement at Step 6
 
 **Your approach:**
 1. Understand the domain
@@ -234,6 +237,33 @@ agent readiness checks out of the box — it should score well on assessment wit
 
 Apply all WSO2 design rules from `references/wso2-rest-api-design-guidelines.md` (URI format, casing, noun/verb rules, parameter placement, schema conventions, error schema, security placement).
 
+**YAML hygiene for prose values.** Inline `example:`, `description:`, `summary:`, and similar string fields are where parse errors creep in — and they're expensive to repair from context in a 40k-line spec. Apply one simple rule:
+
+> **Any string value that contains prose with punctuation must be double-quoted** (or written as a `>-` block scalar). "Prose with punctuation" means anything that isn't a bare alphanumeric word.
+
+Characters that *will* confuse the YAML parser if left in an unquoted string include — but are not limited to — apostrophes (`'`), backticks (`` ` ``), angle brackets (`< >`), curly braces (`{ }`), square brackets (`[ ]`), a leading dash (`-`), a colon followed by a space (`: `), a `#`, and starting with `> | & * ! % @ ?`. Examples of values that need double-quoting:
+
+```yaml
+# wrong — bare apostrophe starts a single-quoted scalar; rest of line breaks the parser
+description: 'amount' must be greater than zero.
+
+# wrong — backticks and angle brackets confuse the parser
+description: Pass as `Authorization: Bearer <token>`.
+
+# right
+description: "'amount' must be greater than zero."
+description: "Pass as `Authorization: Bearer <token>`."
+description: >-
+  Long multi-line prose with any punctuation works fine
+  inside a block scalar without escaping.
+```
+
+Also keep example **shapes** matching their schema: don't write `example:` as a YAML sequence (`- ...`) under a schema whose `type` is `object`. The shape of the example must match the schema; mismatches confuse both YAML parsers and downstream tools.
+
+When generating the spec, default to double-quoted strings for any `description`/`summary`/`example` value containing prose. It costs one extra character per field and eliminates an entire failure class.
+
+**Pagination envelope.** This is the most-frequently-missed item from the outline. Every collection GET response must use the `{ count, next, previous, data: [...] }` envelope shape from Step 4, not a bare array. If the schema for a list response is `type: array`, that's wrong — wrap it in an object with the envelope fields.
+
 Save the file as `<api-name>-openapi.yaml` in the current directory. Tell the user:
 
 > "Saved to `<filename>.yaml`."
@@ -414,6 +444,8 @@ You need a list of issues to fix. Resolve from the first available source:
 
 If none of the above apply and no report exists, ask:
 > "Do you have an assessment report JSON? If so, share the path. If not, I can run an assessment first."
+
+**Exception — "all autoFixable" or "all HIGH" without a report.** Condition 5 (and "all HIGH"-style filters) can't be evaluated without an assessment report. If the user has clearly opted in to fixing without a report — e.g. *"apply all autoFixable fixes to my-spec.yaml"* — don't ask; just run the assessment yourself via the Assessment Workflow's **Output** step (one `assess.js` invocation with `--agent --security --design`, no manual `spectral` calls needed), then use that fresh report as the issue source and continue with Step 2 below.
 
 ---
 

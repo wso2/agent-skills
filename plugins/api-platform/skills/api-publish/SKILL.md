@@ -27,9 +27,10 @@ Read these when needed — don't load all of them upfront:
 - `references/api-yaml-examples.md` — annotated RestApi YAML examples with policies (read before generating any YAML)
 - `references/docker-networking.md` — Docker networking solutions (read before setting the upstream URL)
 
-Bundled scripts (invoke with `bash <absolute-path-to-skill>/scripts/<name>` — keeps the user's permission prompt to one line instead of pasting the full body):
+Bundled scripts (invoke with `bash` or `node` against the absolute path — keeps the user's permission prompt to one line instead of pasting the full body):
 - `scripts/install-ap-cli.sh` — installs the ap CLI release zip into `~/.local/bin` and ensures PATH (Step 1, Path B)
 - `scripts/setup-gateway.sh` — extracts the gateway release to `~/wso2-api-gateway/v<version>/` and runs `docker compose up -d` (Step 3)
+- `scripts/init-local-cli-config.js` — writes `~/.wso2ap/config.yaml` with a `dev` entry pointing at the local gateway, using the gateway's documented public defaults (Step 4, fresh-local branch)
 
 ## External docs (fetch when needed)
 
@@ -146,9 +147,7 @@ Ask for, in order:
 1. **Management URL** (`--server`, e.g. `https://team-gw.example.com:9090` or `http://localhost:9091`)
 2. **Admin URL** (`--admin-server`, e.g. `https://team-gw.example.com:9094`)
 3. **Display-name** to register it under. Default `dev` for a local custom-port instance; suggest something contextual like `team` or `prod` if the URL is non-local.
-4. **Auth method**: `none` / `basic` / `bearer`. If `basic` or `bearer`, ask the user how they'd like to provide credentials — two options:
-   - **Env vars (preferred)** — ask the user to export `WSO2AP_GW_USERNAME` + `WSO2AP_GW_PASSWORD` for basic, or `WSO2AP_GW_TOKEN` for bearer, before continuing. The CLI reads them directly and they take precedence over stored config. Keeps creds out of the chat transcript.
-   - **Inline** — user shares them with you in chat; you pass them as `--username` / `--password` (basic) or `--token` (bearer) on the `ap gateway add` command.
+4. **Auth method**: `none` / `basic` / `bearer`. The fresh-local branch (Step 4) is fully automated — the agent runs a script that pre-registers the local gateway with its documented public defaults, no credential handling in chat. For an existing remote gateway, the user runs `ap gateway add` themselves in their own terminal so the CLI prompts them interactively for username/password (or token); the agent must not accept those credentials inline in chat. If the user pastes a password or token, do not echo it back, do not include it in any command, and do not store it.
 
 Verify the admin URL is reachable before adding the gateway:
 
@@ -156,7 +155,7 @@ Verify the admin URL is reachable before adding the gateway:
 curl -s --max-time 5 <admin-url>/api/admin/v0.9/health
 ```
 
-- **Healthy** → skip Step 3 (no local install needed), go straight to Step 4 with the user's URLs and credentials.
+- **Healthy** → skip Step 3 (no local install needed), go straight to Step 4 (existing-gateway sub-branch) with the user's URLs.
 - **Unreachable** → tell the user the admin URL didn't respond and ask them to check the URL / VPN / firewall. Don't proceed to Step 4 until they confirm a working URL.
 
 **B. Fresh local gateway**
@@ -167,7 +166,7 @@ Silently probe in case the user already has one running and forgot:
 curl -s --max-time 3 http://localhost:9094/api/admin/v0.9/health
 ```
 
-- **Healthy** → silently reuse. Tell the user *"I see a gateway already running locally — using that. Ask me if you want a clean rebuild."* Skip Step 3, go to Step 4 with `--server http://localhost:9090 --admin-server http://localhost:9094`.
+- **Healthy** → silently reuse. Tell the user *"I see a gateway already running locally — using that. Ask me if you want a clean rebuild."* Skip Step 3 and go to Step 4's fresh-local sub-branch (the script handles the local gateway with default credentials, regardless of whether the gateway was started this session or a previous one).
 - **Not healthy** → continue to Step 3 to extract and start the local gateway.
 
 **Step 3 — Check Docker and set up the gateway (local only)**
@@ -201,21 +200,31 @@ ap gateway add --display-name <name> --server <server-url> --admin-server <admin
 
 `--admin-server` is required — without it, `ap gateway health` in Step 5 fails.
 
-**For the fresh-local case** (Step 2 branch B, default credentials admin/admin):
+The flow differs by branch. For the local gateway the agent provisions the CLI config from the gateway's documented public defaults (no credential handling in chat); for any gateway with real user credentials, the user runs `ap gateway add` themselves so the CLI prompts them interactively.
+
+**For the fresh-local case** (Step 2 branch B): run the bundled script. It writes `~/.wso2ap/config.yaml` with a `dev` entry pointing at `http://localhost:9090` / `http://localhost:9094`, using the gateway's shipped defaults (`admin` / `admin`, defined in `~/wso2-api-gateway/v<ver>/configs/config.toml` under `[[controller.auth.basic.users]]`). The script is idempotent.
+
 ```bash
-ap gateway add --display-name dev \
-  --server http://localhost:9090 \
-  --admin-server http://localhost:9094 \
-  --auth basic --username admin --password admin
+node <absolute-path-to-skill>/scripts/init-local-cli-config.js
 ```
 
-**For the existing-gateway case** (Step 2 branch A): use the URLs, display-name, auth method, and credentials the user already gave you in Step 2 — don't re-prompt. Same `ap gateway add` shape, with the user's values substituted. If the user picked **env vars** for credentials in Step 2, omit `--username`/`--password` (or `--token`) — the CLI reads them from the environment:
-```bash
-ap gateway add --display-name <user-supplied-name> \
-  --server <user-supplied-server-url> \
-  --admin-server <user-supplied-admin-url> \
-  --auth <none|basic|bearer> [--username <u> --password <p> | --token <t>]
-```
+The script prints one summary line:
+- Stdout containing `cli config initialized at <path-to-config.yaml> (created)` — fresh write; continue.
+- Stdout containing `cli config initialized at <path-to-config.yaml> (local-already-registered)` — `dev` entry already present from a prior session; continue.
+- Non-zero exit with a message containing `config.yaml already exists with other gateway entries` — the user already has unrelated gateway entries the script won't touch. Surface the script's printed `ap gateway add ...` instruction to the user and have them run it themselves.
+
+After the script succeeds, the agent continues — no user input needed.
+
+**For the existing-gateway case** (Step 2 branch A): the agent does not run `ap gateway add` itself and does not include credentials in any command. Use the URLs, display-name, and auth method the user gave you in Step 2 — don't re-prompt — and hand them the templated command to run in their own terminal:
+
+> "Please run this in your terminal. The CLI will prompt for credentials — enter them there, not here. Tell me when `ap gateway add` succeeds:
+> ```bash
+> ap gateway add --display-name <user-supplied-name> --server <user-supplied-server-url> --admin-server <user-supplied-admin-url> --auth <none|basic|bearer>
+> ```"
+
+Wait for the user to confirm before continuing.
+
+Subsequent `ap` commands (`ap gateway use`, `ap gateway health`, `ap gateway apply`, etc.) read credentials from the CLI's stored config, so the agent can run those.
 
 **Step 5 — Verify gateway health**
 
@@ -376,6 +385,6 @@ For the meta-question of how policies attach to a RestApi (`build.yaml` shape) o
 `--display-name` = `-n` · `--server` = `-s` · `--output` = `-o` · `--file` = `-f` · `--version` = `-v`
 
 ### Auth credentials
-- Inline: `ap gateway add --auth basic --username <u> --password <p>`
-- Via env (takes precedence over stored config): `WSO2AP_GW_USERNAME` / `WSO2AP_GW_PASSWORD`
-- Bearer token: `WSO2AP_GW_TOKEN`
+Credentials never flow through chat or through commands the agent runs.
+- **Local gateway**: agent runs `scripts/init-local-cli-config.js`, which writes `~/.wso2ap/config.yaml` with the gateway's documented defaults (`admin` / `admin`, sourced from `configs/config.toml` in the gateway release). These are public fixture values, not user secrets.
+- **Existing/remote gateway**: user runs `ap gateway add --auth basic` (or `--auth bearer`) themselves in their own terminal; the `ap` CLI prompts interactively for username/password (or token) and writes them to its stored config.

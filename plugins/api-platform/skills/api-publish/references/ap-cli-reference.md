@@ -46,3 +46,21 @@ ap gateway api delete
 | 8080 | Runtime HTTP — app traffic |
 | 8443 | Runtime HTTPS |
 
+### CLI config file
+
+The `ap` CLI stores registered gateway connections at `~/.wso2ap/config.yaml`. Shape:
+
+```yaml
+gateways:
+  - name: <display-name>
+    server: <server-url>
+    adminServer: <admin-url>
+    auth: none|basic|bearer
+    username: <user>     # basic only
+    password: <pass>     # basic only
+    token: <token>       # bearer only
+activeGateway: <display-name>
+```
+
+`ap gateway add` writes to this file; `ap gateway use`, `ap gateway list`, `ap gateway health`, etc. read from it. The bundled `scripts/init-local-cli-config.js` populates it directly for the local-gateway case using the gateway's documented public defaults.
+

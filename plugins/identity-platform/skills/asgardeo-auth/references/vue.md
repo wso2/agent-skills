@@ -84,3 +84,4 @@ const { state } = useAsgardeo();
 - `signInRedirectURL` must exactly match the redirect URI registered in Asgardeo.
 - The `/callback` route must be registered in vue-router before the SDK initialises.
 - vue-router is a required peer dependency — install it if not already present: `npm install vue-router`.
+- `state.username` and any other user field beyond the bare subject only populates when the app's `config-<profile>.yaml` declares those claims under `user_attributes:` and `asgardeo apply` was run. Add at minimum `["emailaddress", "given_name", "family_name"]` for a name/email UI; add `"groups"` for group-gated UI.

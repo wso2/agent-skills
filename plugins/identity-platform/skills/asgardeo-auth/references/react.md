@@ -44,6 +44,7 @@ Notes on props:
 - `afterSignInUrl` — the post-login redirect (must match a registered redirect URI). Replaces the older `signInRedirectURL`.
 - `afterSignOutUrl` — the post-logout redirect (must also match a registered redirect URI). Replaces the older `signOutRedirectURL`.
 - `scopes` is plural (the older `scope` is deprecated). `internal_login` is required so `/scim2/Me` returns the full profile.
+- The scope only opens the SCIM2 endpoint — Asgardeo still won't release individual claims (name, email, groups) unless they're declared under `user_attributes:` in the app's `config-<profile>.yaml`. Add the claims the UI reads, then re-run `asgardeo apply`. See the skill's SKILL.md "User attributes in tokens" section.
 - `instanceId={1}` — must be non-zero, otherwise the OAuth2 `state` prefix is dropped and the callback is silently ignored.
 
 ## 3. Add login/logout to App component
@@ -116,40 +117,60 @@ export default function Callback() {
 
 If the app has no `/callback` route at all (single-page apps that render the same component on every path), the SDK's automatic handling is enough — but most apps with a router need this redirect.
 
-## 5. SCIM2 fallback (only if `useUser()` returns empty profile)
+## 5. Display-name fallback (when `useUser()` returns an empty profile)
 
-Some `@asgardeo/react` versions (e.g. 0.23.3) don't reliably surface SCIM2 fields into `useUser()` even when `internal_login` is in scopes. If `profile` is empty after sign-in, fetch `/scim2/Me` directly:
+> Before treating this as a code issue, **confirm `user_attributes` is set** in the app's `config-<profile>.yaml` and `asgardeo apply` was run. Without that, Asgardeo doesn't release the claims, so none of the fallbacks below will see them.
+
+Two real-world cases leave `useUser().profile` empty even with `internal_login` in scopes and `user_attributes` declared:
+
+1. **SDK bug** — some `@asgardeo/react` versions (e.g. 0.23.3) don't reliably surface OIDC claims into `useUser().profile`, even when the access token (decoded) contains them.
+2. **Federated / JIT-provisioned users (Google, GitHub, etc.)** — the SCIM2 user record often has empty `name.givenName` / `familyName` because the name lives in the OIDC claims Asgardeo released into the token, not in the SCIM profile. A direct `/scim2/Me` call returns blanks for these users.
+
+Use **`/oauth2/userinfo`** as the primary fallback (it respects `user_attributes` and works for both local and federated users), and keep SCIM2 as a secondary fallback for the SDK-bug case where userinfo is somehow blocked:
 
 ```tsx
 import { useEffect, useState } from "react";
 import { useAsgardeo, useUser } from "@asgardeo/react";
 
+const BASE_URL = "https://api.asgardeo.io/t/<org_name>";
+
 function UserProfile() {
   const { isSignedIn, getAccessToken } = useAsgardeo();
   const { profile } = useUser();
-  const [scimProfile, setScimProfile] = useState<any>(null);
+  const [userinfo, setUserinfo] = useState<any>(null);
+  const [scim, setScim] = useState<any>(null);
 
   useEffect(() => {
     if (!isSignedIn || profile?.name?.givenName) return;
     (async () => {
       const token = await getAccessToken();
-      const res = await fetch("https://api.asgardeo.io/t/<org_name>/scim2/Me", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) setScimProfile(await res.json());
+      const headers = { Authorization: `Bearer ${token}` };
+
+      // Primary: OIDC userinfo — respects user_attributes, includes federated claims
+      const u = await fetch(`${BASE_URL}/oauth2/userinfo`, { headers });
+      if (u.ok) setUserinfo(await u.json());
+
+      // Secondary: SCIM2 /Me — for local users when userinfo doesn't help
+      const s = await fetch(`${BASE_URL}/scim2/Me`, { headers });
+      if (s.ok) setScim(await s.json());
     })();
   }, [isSignedIn, profile]);
 
-  const name =
+  const displayName =
     profile?.name?.givenName ||
-    scimProfile?.name?.givenName ||
-    scimProfile?.userName;
+    userinfo?.given_name ||
+    userinfo?.name ||
+    scim?.name?.givenName ||
+    scim?.userName ||
+    profile?.username ||
+    userinfo?.email ||
+    "User";
 
-  return <p>Welcome, {name}</p>;
+  return <p>Welcome, {displayName}</p>;
 }
 ```
 
-Try `useUser()` first — only fetch SCIM2 manually when its `profile` stays empty after the loading state resolves.
+The fallback chain is: `useUser() → /oauth2/userinfo → /scim2/Me → username/email → "User"`. Try `useUser()` first — only call the network endpoints when its `profile` stays empty after the loading state resolves.
 
 ## Notes
 

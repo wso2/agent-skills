@@ -40,6 +40,7 @@ and the official Asgardeo SDKs.
 - When a `.asgardeo/config-<profile>.yaml` already exists, always read it first and merge new entries — never overwrite the whole file blindly.
 - Always set `allowed_origins` in the config file for browser-based apps — without it, all SDK calls are blocked by CORS.
 - Always include `internal_login` in scopes so the SDK can fetch the user's profile via SCIM2.
+- **When an app needs user attributes in its tokens** (e.g. to render a name, gate UI on group membership, or have a backend verify identity from a JWT), add `user_attributes:` to the app entry in `.asgardeo/config-<profile>.yaml` and re-run `asgardeo apply`. Without this, the access token / id_token / `/scim2/Me` response only contains org-level claims and the user object comes back empty. Pick the minimal set the app actually reads — never blanket-add every available claim.
 - Write only minimal integration: provider + login/logout + user display name. No protected routes, no role-based access, no token refresh handling unless explicitly asked.
 - Never store the M2M client secret in application code or `.env` files committed to git.
 - Always check if the CLI is already authenticated before running `asgardeo auth login`.
@@ -328,6 +329,9 @@ Use this field mapping when deriving values from the user's framework and intent
 | Dev server URL | `allowed_origins` | Derived from redirect URI base (e.g. `http://localhost:5173`) |
 | Backend JWKS verification | `access_token.type` | `JWT` (default is opaque) |
 | Group membership | `groups[].members` | `["DEFAULT/<username>", ...]` (userstore prefix required) |
+| Show user name / email in UI | `user_attributes` | `["emailaddress", "given_name", "family_name"]` |
+| Role / group-gated UI | `user_attributes` | include `"groups"` (and `"roles"` if the app reads roles) |
+| Backend reads user identity from JWT | `user_attributes` + `access_token.type: JWT` | claims the API needs (e.g. `["emailaddress", "groups"]`) |
 
 **Important:** Asgardeo rejects multiple plain `redirect_uris` entries with API error 501 (`Multiple callbacks for OAuth2 are not supported yet`). For SPAs that need both a login callback (`/callback`) **and** a post-logout redirect (the app base URL), register them as a single regex entry:
 
@@ -337,6 +341,29 @@ redirect_uris:
 ```
 
 This single entry matches both `http://localhost:5173/callback` (used by `signIn()`) and `http://localhost:5173` (used by `signOut()` as `afterSignOutUrl`). Without this, logout fails with "OAuth Processing Error" because the post-logout redirect URI isn't registered. Adjust the host/port to match the user's dev server.
+
+**User attributes in tokens.** If the app reads any user data — display name, email, group/role membership, or anything the backend will check from a JWT — list those claims under `user_attributes:`. Asgardeo only releases what's explicitly requested. Short names expand against the `http://wso2.org/claims/` dialect; full URIs pass through.
+
+```yaml
+applications:
+  - name: my-spa
+    client_type: public
+    redirect_uris: [regexp=(http://localhost:5173(/callback)?)]
+    allowed_origins: [http://localhost:5173]
+    user_attributes:
+      - emailaddress       # http://wso2.org/claims/emailaddress
+      - given_name         # http://wso2.org/claims/givenname
+      - family_name        # http://wso2.org/claims/lastname
+      - groups             # required if the app gates UI on group membership
+```
+
+Map the user's intent to the minimal claim set before writing:
+- "show the user's name" → `given_name`, `family_name` (and `emailaddress` if you also show email)
+- "role/group-gated UI" → `groups` (and `roles` if the app reads roles)
+- "backend verifies the JWT" → set `access_token.type: JWT` **and** list every claim the API reads
+- Never copy-paste the full alias table — pick only what the app actually consumes.
+
+Skip `user_attributes` only when the app does no user-data work at all (e.g. a pure passthrough that hands tokens to another service).
 
 Write the file using YAML with 4-space indentation, matching the existing file style.
 
@@ -465,8 +492,12 @@ The SDK caches OIDC discovery results in `sessionStorage`. If you change `baseUr
 ### React Hooks order
 All `useState` and `useEffect` calls must appear before any early returns in the component. Never place hooks after `if (isLoading) return ...` or `if (!isSignedIn) return ...`.
 
-### User profile requires `internal_login` scope
-The SDK fetches user profile via SCIM2 (`/scim2/Me`). This endpoint requires the `internal_login` scope in the access token. Without it, SCIM2 returns 401 and `useUser()` returns only org-level claims, not the user's `givenName`/`displayName`. Always include `internal_login` in scopes.
+### User profile requires `internal_login` scope **and** declared `user_attributes`
+The SDK fetches user profile via SCIM2 (`/scim2/Me`). Two things must be true for it to return anything useful:
+1. The access token must include the `internal_login` scope — otherwise SCIM2 returns 401.
+2. The Asgardeo app must declare the claims it wants released under `user_attributes:` in `config-<profile>.yaml`. Asgardeo only releases what's explicitly requested; without this `useUser()` returns only org-level claims even when the SCIM call succeeds.
+
+Always include `internal_login` in scopes **and** list the claims the app reads (e.g. `["emailaddress", "given_name", "family_name", "groups"]`) under `user_attributes` before running `asgardeo apply`.
 
 ### `useUser()` profile field is `givenName` (camelCase)
 The SCIM2 response is mapped to camelCase. Use `profile?.givenName`, not `profile?.given_name`.
@@ -488,17 +519,18 @@ const groupNames = (groups ?? []).map((g) => g.display.split("/").pop());
 if (groupNames.includes("admin")) { /* ... */ }
 ```
 
-### Asgardeo issues opaque access tokens by default — set `access_token_type: JWT` for backend verification
+### Asgardeo issues opaque access tokens by default — set `access_token.type: JWT` for backend verification
 Out of the box, Asgardeo issues opaque (UUID-like) access tokens. Backends that try to verify tokens via JWKS will reject every request with `401 Invalid or expired token`. Frontend-only flows (SPA + Asgardeo's userinfo/SCIM2) work with opaque tokens, but the moment a backend needs to verify the token locally, JWT is required.
 
-Whenever the user mentions a backend, API gateway, Express integration, or token validation, set the access token type to JWT:
+Whenever the user mentions a backend, API gateway, Express integration, or token validation, set the access token type to JWT. **The key is nested under `access_token:` — `access_token_type: JWT` (flat) is silently ignored as an unknown field, so the token type stays `Default` and the agent thinks the fix landed when it didn't:**
 
 ```yaml
 # In .asgardeo/config-<profile>.yaml
 applications:
   - name: MyApp
     client_type: public
-    access_token_type: JWT       # Default | JWT — opt into JWT for JWKS verification
+    access_token:                # Optional block. Omit fields for Asgardeo defaults.
+      type: JWT                  # Default | JWT — opt into JWT for JWKS verification
     redirect_uris:
       - regexp=(http://localhost:5173(/callback)?)
 ```
@@ -510,20 +542,37 @@ asgardeo app create --name "MyApp" --public --access-token-type JWT ...
 asgardeo app update --name "MyApp" --access-token-type JWT
 ```
 
-### `useUser()` may not surface SCIM2 fields in some SDK versions
-In some versions of `@asgardeo/react` (observed in 0.23.3), `useUser()` returns only org-level claims (`org_id`, `org_name`, `org_handle`) even when `internal_login` is in scopes and `/scim2/Me` returns the full profile correctly. If `profile?.givenName` and `flattenedProfile?.emails` come back empty after a successful sign-in, fall back to calling SCIM2 directly:
+Verify the live state with `asgardeo app get --name "MyApp"` — there's no row for the token type yet, so cross-check via `ASGARDEO_DEBUG=1 asgardeo app get --name "MyApp"` and look for `"accessToken":{"type":"JWT"...}` in the response body.
+
+### `useUser()` may return an empty profile — use `/oauth2/userinfo` first, SCIM2 second
+First confirm the app has `user_attributes` declared in `config-<profile>.yaml` and `asgardeo apply` was run — without that, `useUser()` returns only org-level claims no matter what scope is set, because Asgardeo isn't releasing those claims to begin with. (See "User profile requires `internal_login` scope **and** declared `user_attributes`" above.)
+
+If `user_attributes` is correctly set and the profile is still empty, two real cases are in play:
+
+1. **SDK bug** — some `@asgardeo/react` versions (e.g. 0.23.3) don't surface OIDC claims into `useUser().profile` even when the access token clearly contains them.
+2. **Federated / JIT-provisioned users (Google, GitHub, etc.)** — the SCIM2 user record often has empty `name.givenName` / `familyName` for these users because the name lives in the OIDC claims released into the token, not in the SCIM profile. A direct `/scim2/Me` call returns blanks, so the historical "SCIM2 fallback" pattern doesn't help here.
+
+**Use `/oauth2/userinfo` as the primary fallback** — it respects the app's `user_attributes` and works for both local and federated users. Keep SCIM2 as a secondary fallback only:
 
 ```ts
 const { getAccessToken } = useAsgardeo();
 const token = await getAccessToken();
-const res = await fetch(`${baseUrl}/scim2/Me`, {
-  headers: { Authorization: `Bearer ${token}` },
-});
-const me = await res.json();
-// me.name.givenName, me.emails[0], me.userName
+const headers = { Authorization: `Bearer ${token}` };
+
+// Primary: OIDC userinfo — works for local AND federated users
+const userinfo = await fetch(`${baseUrl}/oauth2/userinfo`, { headers }).then(r => r.ok ? r.json() : null);
+
+// Secondary: SCIM2 /Me — for local users when userinfo doesn't help
+const scim = await fetch(`${baseUrl}/scim2/Me`, { headers }).then(r => r.ok ? r.json() : null);
+
+const displayName =
+  profile?.name?.givenName ||
+  userinfo?.given_name || userinfo?.name ||
+  scim?.name?.givenName || scim?.userName ||
+  profile?.username || userinfo?.email || "User";
 ```
 
-Store the result in local component state. Try `useUser()` first — only fall back if its `profile` is empty after the loading state resolves.
+Fallback chain: `useUser() → /oauth2/userinfo → /scim2/Me → username/email → "User"`. See `references/react.md` section 5 for a complete component example.
 
 ---
 

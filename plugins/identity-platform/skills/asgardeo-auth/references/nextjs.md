@@ -77,3 +77,4 @@ export function AuthButton() {
 - The `ASGARDEO_REDIRECT_URL` must exactly match the redirect URI registered in Asgardeo.
 - For Next.js App Router, components that use `useAsgardeo` must be Client Components (`"use client"`).
 - `ASGARDEO_CLIENT_SECRET` is server-side only — never expose it to the browser.
+- `session.user?.name` (and any other user field beyond the bare subject) only populates when the app's `config-<profile>.yaml` declares those claims under `user_attributes:` and `asgardeo apply` was run. Add at minimum `["emailaddress", "given_name", "family_name"]` for a name/email UI; add `"groups"` if the app gates anything on group membership.

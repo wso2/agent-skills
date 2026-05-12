@@ -84,3 +84,4 @@ app.listen(3000, () => console.log("Server running on http://localhost:3000"));
 - `ASGARDEO_CLIENT_SECRET` is server-side only — never expose it to the browser.
 - Install `dotenv` if not already present: `npm install dotenv`.
 - For session persistence across server restarts, configure a session store (e.g., `connect-redis`).
+- `req.asgardeo.getUser()` only contains the bare username/subject unless the app's `config-<profile>.yaml` declares the additional claims under `user_attributes:` (e.g. `["emailaddress", "given_name", "family_name", "groups"]`) and `asgardeo apply` was run. If a downstream service verifies the JWT directly, also set `access_token.type: JWT` so the claims are embedded in the token rather than only retrievable via `/scim2/Me`.

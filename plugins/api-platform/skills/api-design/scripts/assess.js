@@ -162,6 +162,28 @@ function spectralPreflight() {
   }
 }
 
+// Spectral 6.x with --format json sometimes appends a human-readable banner
+// after the JSON array when there are no violations, e.g.
+//   []No results with a severity of 'error' found!
+// Slice to the matching close of the leading array so JSON.parse succeeds,
+// respecting string literals and escapes so a `]` inside a message can't
+// fool us.
+function sliceLeadingJsonArray(s) {
+  if (!s.startsWith('[')) return s; // unexpected — let JSON.parse surface it
+  let depth = 0, inStr = false, esc = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === '\\') esc = true;
+      else if (c === '"') inStr = false;
+    } else if (c === '"') inStr = true;
+    else if (c === '[') depth++;
+    else if (c === ']' && --depth === 0) return s.slice(0, i + 1);
+  }
+  return s;
+}
+
 // Run `spectral lint` for one ruleset and return the parsed JSON violation array.
 // Spectral exits non-zero both when it finds violations and when it fails outright
 // (e.g. unreadable spec, broken ruleset). We disambiguate via stdout: a JSON array
@@ -189,7 +211,7 @@ function runSpectral(specFile, ruleset) {
     return [];
   }
   try {
-    return JSON.parse(out);
+    return JSON.parse(sliceLeadingJsonArray(out));
   } catch (e) {
     process.stderr.write(`Failed to parse Spectral output for ${ruleset}: ${e.message}\n${err}\n`);
     process.exit(1);

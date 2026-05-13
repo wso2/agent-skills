@@ -127,7 +127,7 @@ ap gateway use --display-name <picked>
 ap gateway health
 ```
 - Healthy → skip Steps 3 and 4 entirely; go straight to Step 5 / Phase 2.
-- Unhealthy → diagnose before falling through. Likely causes: compose stack stopped (`docker compose -p gateway ps`), URL changed, server moved. Surface the diagnosis to the user and offer to re-set-it-up or pick a different option — don't silently treat this as "no gateway".
+- Unhealthy → diagnose before falling through. See Step 5 for how to read `ap gateway health` failures (a `404` almost always means the registered entry's `--admin-server` is missing/wrong; otherwise check whether the compose stack is running or the URL has moved). Surface the diagnosis to the user and offer to re-set-it-up or pick a different option — don't silently treat this as "no gateway".
 
 **If the user wants a different one:** fall through to the existing-vs-fresh question below.
 
@@ -233,6 +233,8 @@ ap gateway health
 ```
 
 If healthy, report ✓ and move to Phase 2.
+
+If this returns `404 page not found` (or similar) even though the compose stack is running, the registered gateway entry is almost certainly missing or has a wrong `--admin-server`.
 
 ---
 

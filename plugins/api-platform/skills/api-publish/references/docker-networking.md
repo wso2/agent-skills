@@ -24,18 +24,14 @@ upstream:
 
 This works on all Docker environments: Docker Desktop, Rancher Desktop, Colima, Linux native Docker Engine.
 
-**macOS:**
+**macOS** — resolve whichever interface owns the default route, then read its IPv4:
 ```bash
-ipconfig getifaddr en0
-# or
-ifconfig | grep "inet " | grep -v 127.0.0.1
+ipconfig getifaddr "$(route get default | awk '/interface: / {print $2}')"
 ```
 
-**Linux:**
+**Linux** — print the source IP the kernel would use to reach an external address:
 ```bash
-ip route | grep default | awk '{print $3}'
-# or
-hostname -I | awk '{print $1}'
+ip route get 1.1.1.1 | awk '{print $7; exit}'
 ```
 
 Use the returned IP directly in the upstream URL:
@@ -56,7 +52,7 @@ upstream:
 | Docker Desktop (macOS / Windows) | ✓ Yes |
 | Rancher Desktop | ✓ Yes |
 | Colima | ✓ Yes |
-| Linux native Docker Engine | ✗ No (unless manually configured) |
+| Linux native Docker Engine | ✗ No (unless started with `--add-host=host.docker.internal:host-gateway`) |
 
 ```yaml
 upstream:
@@ -68,27 +64,32 @@ upstream:
 
 ## Which to Use
 
-**Default to Solution 1** (actual IP). It works everywhere without guessing the runtime.
+**Default to Solution 1** (actual IP). It works everywhere without needing to know the runtime.
 
-Only use `host.docker.internal` if:
+Use `host.docker.internal` if:
 - The user confirms they're on Docker Desktop, Rancher Desktop, or Colima, AND
-- You want a URL that stays stable across IP changes (e.g., switching networks)
+- You want a URL that stays stable across IP changes (e.g., switching networks).
+
 
 ---
 
 ## When the Backend is Also in Docker
 
-If the user's backend service is itself running in a Docker container (not on the host), use the container name or Docker network hostname:
+If the user's backend service is itself running in a Docker container, neither host-IP detection nor `host.docker.internal` applies — connect the backend to the gateway's Docker network and address it by container name.
 
+**1. Find the gateway's network** (derived at runtime — don't assume a name):
 ```bash
-docker network inspect gateway_gateway-network
-# Look for the backend container's name/IP
+docker inspect -f '{{range $k,$_ := .NetworkSettings.Networks}}{{$k}}{{end}}' gateway
 ```
 
+**2. Attach the backend container to that network:**
+```bash
+docker network connect <network-from-step-1> <backend-container-name>
+```
+
+**3. Use the backend's container name as the hostname** (stable across restarts; container IPs are not):
 ```yaml
 upstream:
   main:
-    url: http://my-backend-container:8081   # Container name on shared network
+    url: http://<backend-container-name>:8081
 ```
-
-The backend container must be on the same Docker network as the gateway (`gateway_gateway-network` by default).

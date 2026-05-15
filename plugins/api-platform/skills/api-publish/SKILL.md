@@ -273,7 +273,18 @@ Then ask separately: Should this API be public (no auth required) or require aut
 
 **Before generating YAML — handle Docker networking:**
 
-Read `references/docker-networking.md`. The upstream URL in the YAML cannot use `localhost` because the gateway runs inside Docker. Detect the actual host IP and use it.
+If the backend is running on the user's machine (e.g. `localhost:8081`), the upstream URL cannot use `localhost`: the gateway runs inside Docker, so `localhost` resolves to the container itself, not the host. Detect the host's LAN IP and use that instead:
+
+```bash
+# macOS — resolve whichever interface owns the default route
+ipconfig getifaddr "$(route get default | awk '/interface: / {print $2}')"
+# Linux — IP used to reach the outside world (more reliable than `hostname -I`)
+ip route get 1.1.1.1 | awk '{print $7; exit}'
+```
+
+Use that IP in `upstream.main.url` (e.g. `http://192.168.1.42:8081`).
+
+For edge cases — backend itself running in Docker, or using `host.docker.internal` on Docker Desktop / Rancher / Colima — read `references/docker-networking.md`.
 
 **Generate the RestApi YAML:**
 

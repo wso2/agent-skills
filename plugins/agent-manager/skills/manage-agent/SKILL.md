@@ -1,11 +1,13 @@
 ---
 name: manage-agent
-description: Use when an agent needs to drive the full agent-manager lifecycle through `amctl` — install the CLI, log in, create/deploy an agent, list projects and agents, watch build progress, fetch build/runtime logs and metrics, and pull traces. Dulls the sharp edges of the CLI (mandatory flags, mixed identifiers, silent statuses) so the workflow is reliable end-to-end.
+description: Use when an agent needs to drive the full agent-manager lifecycle through `amctl` — install the CLI, log in, create/deploy an agent, list projects and agents, watch build progress, fetch build/runtime logs and metrics, and pull traces.
 ---
 
 # manage-agent
 
 Drive `amctl` to manage agent-manager resources end-to-end. Locks the non-obvious patterns of the CLI into a predictable shape so calls don't silently fail or return half-empty envelopes.
+
+**Your approach:** Show a short plan before starting. Use ✓ for success, ✗ for failure. When something fails, diagnose the likely cause and propose a fix before trying another approach.
 
 **Flag shape is owned by `amctl <verb> --help`, not this skill.** Skills can't stay in lockstep with CLI versions; `--help` always reflects the installed binary. This document carries the things `--help` *won't* tell you: when to call which verb, what its output really means, and where the CLI's surface is misleading.
 
@@ -18,8 +20,15 @@ Drive `amctl` to manage agent-manager resources end-to-end. Locks the non-obviou
 
 If `command -v amctl` returns a path, skip.
 
+Otherwise: ask the user whether they want to install it themselves or have you do it.
+
+> "`amctl` isn't installed. Would you like me to install it for you, or would you prefer to do it yourself?"
+
+**If they want you to install it:**
+Run the bundled wrapper. It checks idempotency, execs the upstream installer, and prints a one-line status with the PATH outcome.
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/wso2/agent-manager/main/scripts/install-amctl.sh | sh
+bash <absolute-path-to-skill>/scripts/install-amctl.sh
 ```
 
 After the installer finishes, **stop and tell the user**: open a new terminal so the updated `PATH` is picked up, then run:
@@ -49,7 +58,7 @@ What exists, what it's for, and where `--help` lives. For exact flags on any row
 | Verb | Use to | Notes |
 |------|--------|-------|
 | `amctl context show` | Inspect current instance / org / linked project. | Auth-blind: shows URL even when unauthed. Not a login check. |
-| `amctl context link` / `unlink` | (User concern, not yours.) Bind a directory to a project / agent. | Be aware of it; don't run it yourself. |
+| `amctl context link` / `unlink` | Bind a directory to a project / agent. | See iron rule 3. |
 | `amctl project list` / `get` | Discover projects, confirm auth works. | `project list` is the login canary. |
 | `amctl project create` / `delete` | Manage projects. | `delete` needs `-y`. |
 | `amctl agent list` / `get` | Discover agents, read agent config. | `get` does NOT show liveness or deployment env — see iron rule 6. |
@@ -69,6 +78,19 @@ What exists, what it's for, and where `--help` lives. For exact flags on any row
 ## End-to-end recipe
 
 The flow for "create an agent and confirm it's actually serving traffic." For exact flags at each step, run `amctl <verb> --help` against your installed binary.
+
+Example plan to announce before you start:
+
+```text
+I'll create the agent and confirm it's actually serving traffic.
+Here's what I'll do:
+✦ Confirm amctl is installed and you're logged in
+✦ Run `amctl agent create --help` to lock onto the current flag set
+✦ Create the agent (auto-builds + auto-deploys to `default`)
+✦ Poll the build until Completed or Failed
+✦ Confirm liveness via logs / metrics
+✦ Pull a recent trace once there's traffic
+```
 
 1. **Create.** Run `amctl agent create --help` to see the current required flag set for your `--subtype` / `--build-type` / `--provisioning` combination, then call `amctl agent create <name> --project <p> ... --json`. The create call auto-builds and auto-deploys to the lowest environment (`default` locally).
 2. **Poll the build.** `amctl agent build list <agent> --project <p> --json` returns newest-first; pull `data.builds[0].buildName`. Poll `amctl agent build get <agent> <buildName> --project <p> --json` until `data.status` is `Completed` or `Failed`. In zsh, name the loop variable anything except `status` — zsh reserves `$status` as a read-only alias for `$?`.

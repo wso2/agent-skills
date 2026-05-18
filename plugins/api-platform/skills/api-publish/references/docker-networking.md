@@ -34,6 +34,11 @@ ipconfig getifaddr "$(route get default | awk '/interface: / {print $2}')"
 ip route get 1.1.1.1 | awk '{print $7; exit}'
 ```
 
+**Windows (PowerShell)** — IPv4 of the interface that owns the default route:
+```powershell
+(Get-NetIPConfiguration | Where-Object {$_.IPv4DefaultGateway -ne $null}).IPv4Address.IPAddress
+```
+
 Use the returned IP directly in the upstream URL:
 ```yaml
 upstream:

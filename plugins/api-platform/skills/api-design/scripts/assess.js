@@ -148,11 +148,15 @@ function processAiIssues(rawIssues) {
 // Spectral preflight + invocation
 // ---------------------------------------------------------------------------
 
+// On Windows, npm exposes a `spectral.cmd` shim instead of `spectral`.
+// Use the explicit shim to ensure cross-platform process spawning works reliably.
+const SPECTRAL_BIN = process.platform === 'win32' ? 'spectral.cmd' : 'spectral';
+
 // Verify the `spectral` CLI is on PATH before doing any expensive work.
 // Exits 1 with an install hint if missing — defence-in-depth; the SKILL.md flow
 // also runs `spectral --version` upfront so the model can catch this earlier.
 function spectralPreflight() {
-  const result = spawnSync('spectral', ['--version'], { stdio: ['ignore', 'pipe', 'ignore'] });
+  const result = spawnSync(SPECTRAL_BIN, ['--version'], { stdio: ['ignore', 'pipe', 'ignore'] });
   if (result.error || result.status !== 0) {
     process.stderr.write(
       'Spectral CLI not found on PATH.\n' +
@@ -190,7 +194,7 @@ function sliceLeadingJsonArray(s) {
 // means a successful lint; empty stdout with non-zero exit is a real failure.
 function runSpectral(specFile, ruleset) {
   const result = spawnSync(
-    'spectral',
+    SPECTRAL_BIN,
     ['lint', specFile, '--ruleset', ruleset, '--format', 'json'],
     { stdio: ['ignore', 'pipe', 'pipe'] }
   );

@@ -42,20 +42,23 @@ const EXTRACT_DIR = path.join(DOWNLOADS, 'ap-install');
 function download(url, dest, redirects = 0) {
   return new Promise((resolve, reject) => {
     if (redirects > 5) return reject(new Error('too many redirects'));
-    https.get(url, (res) => {
+    const cleanup = (err) => { fs.rmSync(dest, { force: true }); reject(err); };
+    const req = https.get(url, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         res.resume();
         return download(res.headers.location, dest, redirects + 1).then(resolve, reject);
       }
       if (res.statusCode !== 200) {
         res.resume();
-        return reject(new Error(`HTTP ${res.statusCode} fetching ${url}`));
+        return cleanup(new Error(`HTTP ${res.statusCode} fetching ${url}`));
       }
       const file = fs.createWriteStream(dest);
       res.pipe(file);
       file.on('finish', () => file.close(() => resolve()));
-      file.on('error', reject);
-    }).on('error', reject);
+      file.on('error', cleanup);
+    });
+    req.on('error', cleanup);
+    req.setTimeout(60_000, () => req.destroy(new Error(`timeout fetching ${url}`)));
   });
 }
 

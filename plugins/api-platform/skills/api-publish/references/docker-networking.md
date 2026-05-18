@@ -82,10 +82,12 @@ Use `host.docker.internal` if:
 
 If the user's backend service is itself running in a Docker container, neither host-IP detection nor `host.docker.internal` applies — connect the backend to the gateway's Docker network and address it by container name.
 
-**1. Find the gateway's network** (derived at runtime — don't assume a name):
+**1. Find the gateway's network** — query by the Compose project label so this works regardless of the network's actual name:
 ```bash
-docker inspect -f '{{range $k,$_ := .NetworkSettings.Networks}}{{$k}}{{end}}' gateway
+# Default project name is `gateway`; substitute if you overrode COMPOSE_PROJ when running setup-gateway.js
+docker network ls --filter "label=com.docker.compose.project=gateway" --format '{{.Name}}'
 ```
+If more than one network is listed, pick the one that isn't the project's default bridge — it's the one your compose file declared.
 
 **2. Attach the backend container to that network:**
 ```bash

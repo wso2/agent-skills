@@ -27,9 +27,9 @@ Read these when needed — don't load all of them upfront:
 - `references/api-yaml-examples.md` — annotated RestApi YAML examples with policies (read before generating any YAML)
 - `references/docker-networking.md` — Docker networking solutions (read before setting the upstream URL)
 
-Bundled scripts (invoke with `bash` or `node` against the absolute path — keeps the user's permission prompt to one line instead of pasting the full body):
-- `scripts/install-ap-cli.sh` — installs the ap CLI release zip into `~/.local/bin` and ensures PATH (Step 1, Path B)
-- `scripts/setup-gateway.sh` — extracts the gateway release to `~/wso2-api-gateway/v<version>/` and runs `docker compose up -d` (Step 3)
+Bundled scripts (invoke with `node` against the absolute path — keeps the user's permission prompt to one line instead of pasting the full body).
+- `scripts/install-ap-cli.js` — downloads the ap CLI release matching the user's OS/arch and installs it (Step 1, Path B)
+- `scripts/setup-gateway.js` — extracts the gateway release to `~/wso2-api-gateway/v<version>/` and starts its Docker Compose stack (Step 3)
 - `scripts/init-local-cli-config.js` — writes `~/.wso2ap/config.yaml` with a `dev` entry pointing at the local gateway, using the gateway's documented public defaults (Step 4, fresh-local branch)
 
 ## External docs (fetch when needed)
@@ -86,24 +86,28 @@ If `ap` is not found: ask the user whether they want to install it themselves or
 Point them to https://github.com/wso2/api-platform/releases/tag/ap%2Fv0.8.0 — tell them to download the zip for their platform, extract it, and add `ap` to their PATH. Wait for them to confirm, then verify with `ap --help` before continuing.
 
 **If they want you to install it (Path B):**
-Run the bundled install script — it detects the platform, downloads the matching ap CLI release into `~/Downloads`, moves the binary to `~/.local/bin/ap`, cleans up, and ensures `~/.local/bin` is on PATH for future shells.
+Run the bundled install script — it detects the platform, downloads the matching ap CLI release, installs the binary (Linux/macOS: `~/.local/bin/ap`; Windows: `%LOCALAPPDATA%\Programs\ap\ap.exe`), and ensures the install directory is on PATH for future shells.
 
 ```bash
-bash <absolute-path-to-skill>/scripts/install-ap-cli.sh
+node <absolute-path-to-skill>/scripts/install-ap-cli.js
 ```
 
-The script prints one summary line on success: `ap installed at /Users/.../.local/bin/ap (path-already-configured | path-added-to:<rc-file> | path-update-failed:<rc-file>)`.
+The script prints one summary line on success: `ap installed at <path> (path-already-configured | path-added-to:<target> | path-update-failed:<target>)`. `<target>` is a shell-rc file on Linux/macOS or `User-Env` on Windows (the User-scope PATH environment variable).
 
 Verify immediately:
 ```bash
 ap --help
 ```
 
-If `ap --help` succeeds, continue to Step 2. The only install-script status worth surfacing is `path-update-failed:<rc-file>` — it means the user has to act if they want to use `ap` in their own terminals. Tell them: *"Heads up: I couldn't update your shell profile automatically. To use `ap` in your own terminals, add this to `~/.zshrc` or `~/.bashrc`: `export PATH=\"$HOME/.local/bin:$PATH\"`."* Then continue. For `path-already-configured` and `path-added-to:<rc-file>`, say nothing extra — just continue.
+If `ap --help` succeeds, continue to Step 2. The only install-script status worth surfacing is `path-update-failed:<target>` — it means the user has to act if they want to use `ap` in their own terminals. Tell them based on the target:
+- Linux/macOS (`<rc-file>`): *"Heads up: I couldn't update `<rc-file>` automatically. To use `ap` in your own terminals, add this line to it: `export PATH=\"$HOME/.local/bin:$PATH\"`."*
+- Windows (`User-Env`): *"Heads up: I couldn't update your User PATH automatically. To use `ap` in your own terminals, open `Settings → Edit environment variables for your account` and add `%LOCALAPPDATA%\Programs\ap` to `Path`."*
 
-If `ap --help` actually fails — rare; only happens when the Bash tool's PATH didn't pick up `~/.local/bin` — fall back: tell the user *"`~/.local/bin` isn't on the Bash tool's PATH yet. Please run `source ~/.zshrc` (or `source ~/.bashrc`), or restart this Claude Code session, then confirm here."* Wait, then re-run `ap --help`.
+Then continue. For `path-already-configured` and `path-added-to:<target>`, say nothing extra — just continue.
 
-> **Note for agent:** From this point on, always invoke `ap` by its bare name — never the full path `~/.local/bin/ap`.
+If `ap --help` actually fails — happens when the Bash tool's PATH didn't pick up the new install directory — fall back: tell the user *"The install directory isn't on this session's PATH yet. Please restart this Claude Code session (on Linux/macOS, `source ~/.zshrc` also works), then confirm here."* Wait, then re-run `ap --help`.
+
+> **Note for agent:** From this point on, always invoke `ap` by its bare name — never the full install path.
 
 **Step 2 — Find or set up the gateway**
 
@@ -127,7 +131,7 @@ ap gateway use --display-name <picked>
 ap gateway health
 ```
 - Healthy → skip Steps 3 and 4 entirely; go straight to Step 5 / Phase 2.
-- Unhealthy → diagnose before falling through. Likely causes: compose stack stopped (`docker compose -p gateway ps`), URL changed, server moved. Surface the diagnosis to the user and offer to re-set-it-up or pick a different option — don't silently treat this as "no gateway".
+- Unhealthy → diagnose before falling through. See Step 5 for how to read `ap gateway health` failures (a `404` almost always means the registered entry's `--admin-server` is missing/wrong; otherwise check whether the compose stack is running or the URL has moved). Surface the diagnosis to the user and offer to re-set-it-up or pick a different option — don't silently treat this as "no gateway".
 
 **If the user wants a different one:** fall through to the existing-vs-fresh question below.
 
@@ -179,12 +183,12 @@ docker --version
 Then run the bundled setup script. It detects the Compose variant, extracts the gateway release to `~/wso2-api-gateway/v<version>/`, and brings up the Compose stack with project name `gateway`.
 
 ```bash
-bash <absolute-path-to-skill>/scripts/setup-gateway.sh
+node <absolute-path-to-skill>/scripts/setup-gateway.js
 ```
 
-The script prints one summary line on success: `gateway ready at /Users/.../wso2-api-gateway/v1.1.0 (reused-existing | freshly-extracted); compose project: gateway`. Use the bracketed status to choose what to tell the user:
+The script prints one summary line on success: `gateway ready at /Users/.../wso2-api-gateway/v1.1.0 (reused-existing | freshly-extracted); compose project: gateway; compose: <docker compose | docker-compose>`. Use the bracketed status to choose what to tell the user, and use the `compose:` value when surfacing any stop/restart command.
 
-- `freshly-extracted` — *"Gateway extracted at `~/wso2-api-gateway/v1.1.0/`. The Compose project name is `gateway` — to stop it later: `cd ~/wso2-api-gateway/v1.1.0 && docker compose -p gateway down`."*
+- `freshly-extracted` — *"Gateway extracted at `~/wso2-api-gateway/v1.1.0/`. The Compose project name is `gateway` — to stop it later, cd into that directory and run `<compose-from-summary-line> -p gateway down`."*
 - `reused-existing` — *"Found an existing gateway extraction at `~/wso2-api-gateway/v1.1.0/` — reusing it. If you want a fresh copy, ask me and I'll remove that directory and re-run setup."*
 
 If Docker Compose isn't installed, the script exits non-zero with an error message — tell the user: *"Docker Compose is required. Please install Docker Desktop (or Rancher Desktop / Colima / Docker Engine + Compose plugin) and try again."*
@@ -234,6 +238,8 @@ ap gateway health
 
 If healthy, report ✓ and move to Phase 2.
 
+If this returns `404 page not found` (or similar) even though the compose stack is running, the registered gateway entry is almost certainly missing or has a wrong `--admin-server`.
+
 ---
 
 ## Phase 2 — Expose an API
@@ -271,7 +277,20 @@ Then ask separately: Should this API be public (no auth required) or require aut
 
 **Before generating YAML — handle Docker networking:**
 
-Read `references/docker-networking.md`. The upstream URL in the YAML cannot use `localhost` because the gateway runs inside Docker. Detect the actual host IP and use it.
+If the backend is running on the user's machine (e.g. `localhost:8081`), the upstream URL cannot use `localhost`: the gateway runs inside Docker, so `localhost` resolves to the container itself, not the host. Detect the host's LAN IP and use that instead:
+
+```bash
+# macOS — resolve whichever interface owns the default route
+ipconfig getifaddr "$(route get default | awk '/interface: / {print $2}')"
+# Linux — IP used to reach the outside world (more reliable than `hostname -I`)
+ip route get 1.1.1.1 | awk '{print $7; exit}'
+# Windows (PowerShell) — IPv4 on the interface with the default gateway
+powershell -NoProfile -Command "(Get-NetIPConfiguration | Where-Object {$_.IPv4DefaultGateway -ne $null}).IPv4Address.IPAddress"
+```
+
+Use that IP in `upstream.main.url` (e.g. `http://192.168.1.42:8081`).
+
+For edge cases — backend itself running in Docker, or using `host.docker.internal` on Docker Desktop / Rancher / Colima — read `references/docker-networking.md`.
 
 **Generate the RestApi YAML:**
 

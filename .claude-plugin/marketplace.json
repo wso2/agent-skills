@@ -14,6 +14,13 @@
       "description": "Skills for the WSO2 API Platform — design, assess, and fix OpenAPI specs for AI agent readiness, security, and design quality; then set up, publish, and manage APIs through the WSO2 API Gateway using the ap CLI.",
       "category": "development",
       "tags": ["wso2", "api-platform", "openapi", "api-gateway", "api-design"]
+    },
+    {
+      "name": "agent-manager",
+      "source": "./plugins/agent-manager",
+      "description": "Skill for driving the WSO2 agent-manager lifecycle through the amctl CLI — install, log in, create/deploy agents, watch builds, fetch logs and metrics, and triage runtime issues.",
+      "category": "development",
+      "tags": ["wso2", "agent-manager", "amctl", "ai-agents", "deployment"]
     }
   ]
 }

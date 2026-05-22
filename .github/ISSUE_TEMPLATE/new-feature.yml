@@ -1,0 +1,33 @@
+name: "💡 New Feature Request"
+description: Suggest a new skill, plugin, or capability.
+type: "feature"
+labels: ["Type/NewFeature"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem will this skill/feature solve?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the skill, plugin, or capability you'd like to have. Include example prompts that should trigger it where applicable.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Describe any alternatives you have considered.
+    validations:
+      required: false
+  - type: input
+    id: plugin
+    attributes:
+      label: Target Plugin
+      description: Existing plugin this fits under, or "new plugin" if it requires a new one.
+    validations:
+      required: false

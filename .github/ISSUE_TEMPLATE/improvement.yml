@@ -1,0 +1,33 @@
+name: "🚀 Improvement Request"
+description: Suggest an improvement to an existing skill or plugin.
+type: "feature"
+labels: ["Type/Improvement"]
+body:
+  - type: input
+    id: plugin
+    attributes:
+      label: Affected Plugin / Skill
+      description: Name of the plugin and/or skill the improvement applies to.
+    validations:
+      required: true
+  - type: textarea
+    id: limitation
+    attributes:
+      label: Current Limitation
+      description: Describe the current limitation.
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested Improvement
+      description: Describe the improvement you suggest.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Plugin Version
+      description: Version of the plugin this applies to.
+    validations:
+      required: false

@@ -1,0 +1,41 @@
+name: "🐞 Report a Bug"
+description: Create an issue if a skill or plugin does not work as expected.
+type: "bug"
+labels: ["Type/Bug"]
+body:
+  - type: textarea
+    id: background
+    attributes:
+      label: Description
+      description: Please share a clear and concise description of the problem.
+      placeholder: Description
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: List the steps you followed when you encountered the issue. Include the prompt(s) used to trigger the skill where applicable.
+    validations:
+      required: false
+  - type: input
+    id: plugin
+    attributes:
+      label: Affected Plugin / Skill
+      description: Name of the plugin and/or skill (e.g. `api-platform`).
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Plugin Version
+      description: Version of the plugin where the issue was observed.
+    validations:
+      required: false
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Details (with versions)
+      description: Claude Code version, OS, and any other relevant environment details.
+    validations:
+      required: false

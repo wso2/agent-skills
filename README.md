@@ -7,6 +7,7 @@ Official Agent skills for building and managing with WSO2 products.
 | Plugin | Description |
 |--------|-------------|
 | [api-platform](./plugins/api-platform/README.md) | Design, assess, and fix OpenAPI specs; deploy and manage APIs via the WSO2 API Gateway |
+| [agent-manager](./plugins/agent-manager/README.md) | Deploy and inspect agents; tail logs, metrics, and traces; triage runtime failures |
 
 ## Installation
 
@@ -27,6 +28,7 @@ Register the marketplace:
 Install a plugin:
 ```
 /plugin install api-platform@wso2-agent-skills
+/plugin install agent-manager@wso2-agent-skills
 ```
 
 ## Development

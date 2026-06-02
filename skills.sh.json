@@ -1,0 +1,14 @@
+{
+  "groupings": [
+    {
+      "title": "API Platform",
+      "description": "Skills for designing APIs and running them as secure, managed services on a gateway.",
+      "skills": ["api-design", "api-publish"]
+    },
+    {
+      "title": "Agent Manager",
+      "description": "Skills for building, deploying, and operating AI agents.",
+      "skills": ["manage-agent"]
+    }
+  ]
+}

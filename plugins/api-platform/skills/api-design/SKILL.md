@@ -1,17 +1,17 @@
 ---
 name: api-design
 description: >
-  Use this skill to design an OpenAPI specification from scratch, assess an existing spec for
-  AI agent readiness / security / design quality, or fix issues found in a spec.
+  Use this skill to design an OpenAPI spec from scratch, assess an existing spec for
+  AI agent readiness, security, or design quality, or fix issues found in a spec.
   Trigger when the user describes an API they want to build, asks to "design", "create",
   "draft", or "scaffold" an OpenAPI spec, or mentions building a REST API for a service or
-  domain. Also trigger when the user says things like "I want to expose endpoints for X",
-  "help me design an API for Y", or "I need an OpenAPI spec for Z" — even if they don't say
+  domain. Trigger when the user says things like "I want to expose endpoints for X",
+  "help me design an API for Y", or "I need an OpenAPI spec for Z" — even without saying
   "OpenAPI" explicitly.
-  ALSO trigger when the user asks to evaluate, review, check, or assess an OpenAPI spec for
+  Trigger when the user asks to evaluate, review, check, or assess an OpenAPI spec for
   agent compatibility, API quality, security, OWASP compliance, WSO2 guidelines, or REST best
   practices — or when they share a .yaml/.json OpenAPI file and ask how good it is.
-  ALSO trigger when the user asks to fix, correct, remediate, or apply fixes to issues in
+  Trigger when the user asks to fix, correct, remediate, or apply fixes to issues in
   an OpenAPI spec — including "fix issue spec-001", "fix all HIGH severity issues",
   "apply autoFixable fixes", or "fix the spec issues from this report".
 ---

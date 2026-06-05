@@ -1,0 +1,32 @@
+{
+  "name": "wso2-agent-skills",
+  "interface": {
+    "displayName": "WSO2 Agent Skills"
+  },
+  "plugins": [
+    {
+      "name": "api-platform",
+      "source": {
+        "source": "local",
+        "path": "./plugins/api-platform"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Engineering"
+    },
+    {
+      "name": "agent-manager",
+      "source": {
+        "source": "local",
+        "path": "./plugins/agent-manager"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Engineering"
+    }
+  ]
+}

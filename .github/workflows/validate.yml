@@ -1,0 +1,38 @@
+name: Validate Skills & Plugins
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "plugins/**"
+      - ".claude-plugin/**"
+      - ".github/workflows/validate.yml"
+      - ".github/scripts/**"
+      - "package.json"
+      - "package-lock.json"
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate skills & manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate skills, plugin.json, and marketplace.json
+        run: node .github/scripts/validate-skills.js
+
+      - name: Check bundled script syntax
+        run: .github/scripts/check-script-syntax.sh

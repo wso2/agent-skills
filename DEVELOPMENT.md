@@ -75,6 +75,26 @@ Tips:
 - **Reference loading.** Skills should load reference files on demand via `Read`, not eagerly. Keep `SKILL.md` short and push detail into `references/`.
 - **Scripts.** Make any scripts under `scripts/` executable and ensure they run from the plugin root with no extra setup.
 
+## PR Validation Checks
+
+Every pull request runs `.github/workflows/validate.yml`, which enforces the [Agent Skills spec](https://agentskills.io/specification) and the documented [Claude Code plugin rules](https://code.claude.com/docs/en/plugins-reference). The validator is self-contained — it needs only Node and the `yaml` package, so it runs the same in CI and locally for any contributor. Run the same checks locally before opening a PR:
+
+```
+npm ci
+node .github/scripts/validate-skills.js
+```
+
+The validator checks each skill and manifest for:
+
+- **SKILL.md frontmatter** — `name` present, lowercase kebab-case, ≤64 chars, and **matching its directory name**; `description` present and ≤1024 chars; `compatibility` ≤500 chars; only spec-allowed frontmatter keys (`name`, `description`, `license`, `allowed-tools`, `metadata`, `compatibility`). Frontmatter is parsed with the `yaml` package, so malformed YAML fails the check.
+- **Reference paths** — every `references/`, `scripts/`, or `assets/` file mentioned in a `SKILL.md` actually exists.
+- **plugin.json** — valid JSON, `name` present and lowercase kebab-case, valid semver `version` if set.
+- **marketplace.json** — valid JSON, every `source` starts with `./` and resolves to a real directory, and every plugin on disk is listed (and vice versa).
+- **Body size** (warning only) — `SKILL.md` over 500 lines, per spec guidance.
+
+The workflow additionally runs `node --check` / `bash -n` on bundled scripts to catch syntax errors before merge.
+
+
 ## Testing the Marketplace Locally
 
 To test the full marketplace install flow against your local checkout:

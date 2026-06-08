@@ -26,7 +26,7 @@ bal build                # confirm baseline compiles before writing code
 
 **Step 2 — Discover libraries if needed**: If the task requires an external connector or library you don't know, invoke the `library` agent. It will search, fetch, and return a compact API summary. Then add the `import` statement to your `.bal` file — Ballerina auto-resolves dependencies from Central when you run `bal build`.
 - The library agent uses the bundled `ballerina-library` MCP server (no extra install). If its tools error as "not found", ensure the `ballerina` plugin is enabled and the session has been restarted.
-- **Never edit `Dependencies.toml`** — it is auto-managed by the build tool.
+- **Never hand-edit `Dependencies.toml`** to add dependencies — it is auto-managed by the build tool. (Deleting it to force a clean re-resolution is fine.)
 - **Never edit `Ballerina.toml` to add dependencies** — imports + `bal build` handle this automatically.
 
 **Step 3 — Write the code**: Follow all rules in [code-rules.md](code-rules.md). Key rules:

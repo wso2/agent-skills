@@ -82,7 +82,7 @@ When working with a Ballerina workspace (root `Ballerina.toml` with a `[workspac
 
 - Prefer modifying existing `.bal` files over creating new ones unless explicitly asked.
 - Do not create documentation markdown files.
-- **Never edit `Dependencies.toml`** — it is auto-managed by the build tool. Do not create, modify, or delete it.
+- **Never hand-edit `Dependencies.toml`** — it is auto-managed by the build tool. Do not create or hand-modify it to manage dependencies; deleting it to force a clean re-resolution (then rebuilding) is a valid troubleshooting step.
 - **Never edit `Ballerina.toml` to add dependencies** — add the `import` statement in the `.bal` file and run `bal build`; Ballerina resolves and downloads packages from Central automatically.
 
 ## Tests

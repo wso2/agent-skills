@@ -3,9 +3,9 @@
 // HTTP layer for Central API calls.
 //
 // Wraps the native `fetch` with:
-//   - per-attempt timeout (default 30s)
+//   - per-attempt timeout (default 120s)
 //   - retry with exponential backoff and jitter (default 3 attempts)
-//   - total wall-clock budget across attempts (default 15s)
+//   - total wall-clock budget across attempts (default 300s)
 //   - honours caller AbortSignal — re-throws CancelledError if it fires
 //   - maps every failure mode to UpstreamError / TimeoutError / CancelledError
 //
@@ -22,7 +22,7 @@ const {
 const DEFAULTS = Object.freeze({
     timeoutMs: 120_000,     // per attempt — Central can be slow to respond for large orgs
     maxAttempts: 3,
-    budgetMs: 60_000,       // total wall clock across all retries (covers a slow first attempt + 2 fast retries)
+    budgetMs: 300_000,      // total wall clock across all retries — must exceed per-attempt timeout (covers a slow first attempt + 2 fast retries)
     baseDelayMs: 200,       // exponential backoff base
 });
 

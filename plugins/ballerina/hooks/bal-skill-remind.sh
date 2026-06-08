@@ -15,7 +15,9 @@ case "$tool" in
 esac
 
 session_id=$(echo "$input" | jq -r '.session_id // ""')
-MARKER="${TMPDIR%/}/.ballerina-skill-${session_id}"
+[[ -z "$session_id" ]] && exit 0
+tmpdir="${TMPDIR:-/tmp}"
+MARKER="${tmpdir%/}/.ballerina-skill-${session_id}"
 [[ -f "$MARKER" ]] && exit 0
 
 touch "$MARKER"

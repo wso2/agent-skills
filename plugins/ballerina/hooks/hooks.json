@@ -1,0 +1,29 @@
+{
+  "description": "Silently inject ballerina skill reminder and track activation",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/bal-skill-remind.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/bal-skill-mark.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

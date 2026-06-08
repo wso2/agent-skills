@@ -8,6 +8,7 @@ Official Agent skills for building and managing with WSO2 products.
 |--------|-------------|
 | [api-platform](./plugins/api-platform/README.md) | Design, assess, and fix OpenAPI specs; deploy and manage APIs via the WSO2 API Gateway |
 | [agent-manager](./plugins/agent-manager/README.md) | Deploy and inspect agents; tail logs, metrics, and traces; triage runtime failures |
+| [ballerina](./plugins/ballerina/README.md) | Ballerina LSP code intelligence plus an AI assistant to write integrations, discover libraries, and run projects |
 
 ## Installation
 
@@ -29,6 +30,7 @@ Install a plugin:
 ```
 /plugin install api-platform@wso2-agent-skills
 /plugin install agent-manager@wso2-agent-skills
+/plugin install ballerina@wso2-agent-skills
 ```
 
 ## Development

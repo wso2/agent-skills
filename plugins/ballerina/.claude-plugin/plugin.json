@@ -1,0 +1,14 @@
+{
+  "name": "ballerina",
+  "version": "0.4.0",
+  "description": "Ballerina language support — LSP code intelligence for .bal files plus an AI coding assistant for writing integrations and services, discovering libraries from Ballerina Central, and running and testing projects.",
+  "author": {
+    "name": "WSO2",
+    "url": "https://wso2.com"
+  },
+  "homepage": "https://github.com/wso2/agent-skills",
+  "repository": "https://github.com/wso2/agent-skills",
+  "license": "Apache-2.0",
+  "keywords": ["ballerina", "lsp", "integration", "wso2", "cloud-native"],
+  "lspServers": "./.lsp.json"
+}

@@ -21,6 +21,13 @@
       "description": "Skill for driving the WSO2 agent-manager lifecycle through the amctl CLI — install, log in, create/deploy agents, watch builds, fetch logs and metrics, and triage runtime issues.",
       "category": "development",
       "tags": ["wso2", "agent-manager", "amctl", "ai-agents", "deployment"]
+    },
+    {
+      "name": "ballerina",
+      "source": "./plugins/ballerina",
+      "description": "Ballerina language support — LSP code intelligence for .bal files plus an AI coding assistant for writing integrations and services, discovering libraries from Ballerina Central, and running and testing projects.",
+      "category": "development",
+      "tags": ["wso2", "ballerina", "lsp", "integration", "cloud-native"]
     }
   ]
 }

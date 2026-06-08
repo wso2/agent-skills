@@ -16,7 +16,7 @@ bal run -- -Cballerina.http.traceLogConsole=true
 
 Output looks like:
 
-```
+```text
 [2024-03-15 10:30:01,234] TRACE {http.tracelog.downstream} - [id: 0x04eed4c9] REGISTERED
 [2024-03-15 10:30:01,240] TRACE {http.tracelog.downstream} - [id: 0x04eed4c9, host:/127.0.0.1:9090 - remote:/127.0.0.1:54362] INBOUND: DefaultHttpRequest
   GET /api/users HTTP/1.1

@@ -4,7 +4,7 @@
 
 The most common SQL problem is failing to connect:
 
-```
+```text
 error: {ballerina/sql}DatabaseError Communications link failure: ...
 ```
 

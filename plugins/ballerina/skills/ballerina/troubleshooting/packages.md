@@ -6,7 +6,7 @@ Covers `bal pull` failures, version conflicts, proxy/firewall handling, offline 
 
 Typical symptom:
 
-```
+```text
 cannot resolve module 'ballerina/http'
 ```
 

@@ -6,7 +6,7 @@
 
 **Listener-side** (`graphql:Error` — returned from listener lifecycle calls like `attach`, `start`, `gracefulStop`):
 
-```
+```text
 graphql:Error
 ├── graphql:AuthnError    (authentication failed)
 └── graphql:AuthzError    (authorization failed)

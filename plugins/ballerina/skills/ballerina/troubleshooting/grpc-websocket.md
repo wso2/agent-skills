@@ -30,7 +30,7 @@ bal grpc --input service.proto --output ./generated --mode service
 
 For third-party connector packages (Salesforce, GitHub, ServiceNow, Twilio, etc.), errors typically appear in one of these shapes:
 
-```
+```text
 error: {ballerinax/<connector>}Error <upstream message>
 ```
 

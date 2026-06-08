@@ -106,7 +106,7 @@ Configurable values need a `Config.toml` or equivalent. Four approaches:
 
 **1) `tests/Config.toml`** — Ballerina automatically uses this when running tests.
 
-```
+```text
 my-package/
 ├── Ballerina.toml
 ├── Config.toml          # runtime config (ignored for tests)

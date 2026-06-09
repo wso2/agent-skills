@@ -225,6 +225,7 @@ function createPaths(resourcePath) {
         if (segment.startsWith("[") && segment.endsWith("]")) {
             const inner = segment.slice(1, -1);
             const spaceIdx = inner.indexOf(" ");
+            if (spaceIdx === -1) return segment;
             return { type: inner.slice(0, spaceIdx), name: inner.slice(spaceIdx + 1) };
         }
         return segment;

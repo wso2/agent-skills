@@ -39,6 +39,16 @@ The `library` sub-agent discovers Ballerina libraries via the bundled MCP server
 
 No `npm install` step is required — the MCP server ships pre-bundled at `mcp/dist/server.js`.
 
+### Other agents — `npx skills`
+
+The `ballerina` **skill** also installs through the cross-agent [skills CLI](https://github.com/vercel-labs/skills) (Codex, Cursor, Gemini CLI, Copilot, …):
+
+```
+npx skills add wso2/agent-skills --skill ballerina
+```
+
+This copies the skill — write/run/test guidance plus the troubleshooting references — into the agent's skills directory. Note that this channel carries the **skill only**: the language server, the `ballerina-library` MCP discovery server, and the activation hooks are Claude Code plugin features and are **not** included this way. For the full experience (LSP code intelligence + library discovery), use the Claude Code marketplace install above.
+
 ### Verify
 
 ```

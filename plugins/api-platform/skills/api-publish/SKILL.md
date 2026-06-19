@@ -105,7 +105,7 @@ If `ap --help` succeeds, continue to Step 2. The only install-script status wort
 
 Then continue. For `path-already-configured` and `path-added-to:<target>`, say nothing extra — just continue.
 
-If `ap --help` actually fails — happens when the Bash tool's PATH didn't pick up the new install directory — fall back: tell the user *"The install directory isn't on this session's PATH yet. Please restart this Claude Code session (on Linux/macOS, `source ~/.zshrc` also works), then confirm here."* Wait, then re-run `ap --help`.
+If `ap --help` actually fails — happens when the Bash tool's PATH didn't pick up the new install directory — fall back: tell the user *"The install directory isn't on this session's PATH yet. Please restart this agent session (on Linux/macOS, `source ~/.zshrc` also works), then confirm here."* Wait, then re-run `ap --help`.
 
 > **Note for agent:** From this point on, always invoke `ap` by its bare name — never the full install path.
 

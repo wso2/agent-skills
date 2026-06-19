@@ -1,0 +1,27 @@
+{
+  "name": "api-platform",
+  "version": "0.3.0",
+  "description": "Skills for the WSO2 API Platform — design, assess, and fix OpenAPI specs for AI agent readiness, security, and design quality; then set up, publish, and manage APIs through the WSO2 API Gateway using the ap CLI.",
+  "author": {
+    "name": "WSO2",
+    "url": "https://wso2.com"
+  },
+  "homepage": "https://github.com/wso2/agent-skills",
+  "repository": "https://github.com/wso2/agent-skills",
+  "license": "Apache-2.0",
+  "keywords": ["api-platform", "api-design", "openapi", "wso2", "api-gateway"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "WSO2 API Platform",
+    "shortDescription": "Design, assess, and publish APIs on the WSO2 API Platform.",
+    "longDescription": "Skills for the WSO2 API Platform. Design production-quality OpenAPI 3.x specs from scratch, assess existing specs for AI agent readiness, security, and design quality, and apply targeted fixes to reported issues. Then set up the WSO2 API Gateway locally, expose backend services as managed APIs, and add auth, rate limiting, CORS, or header policies using the ap CLI.",
+    "developerName": "WSO2",
+    "category": "Engineering",
+    "capabilities": ["Interactive", "Read", "Write"],
+    "defaultPrompt": [
+      "Design an OpenAPI spec for a bookstore API.",
+      "Assess petstore.yaml for AI agent readiness.",
+      "Expose my localhost:8081 service via the WSO2 gateway."
+    ]
+  }
+}

@@ -389,7 +389,7 @@ Invoke a single command. `assess.js` runs each requested ruleset, merges in the 
 node <absolute-path-to-skill>/scripts/assess.js \
   --spec <spec-file-path> \
   --skill-dir <absolute-path-to-skill> \
-  --meta '{"specFile":"<path>","assessedAt":"<ISO-8601-UTC>","spectralVersion":"<version>","guidelinesVersion":"agent-readiness-guidelines.md","model":"claude-sonnet-4-6"}' \
+  --meta '{"specFile":"<path>","assessedAt":"<ISO-8601-UTC>","spectralVersion":"<version>","guidelinesVersion":"agent-readiness-guidelines.md","model":"<model-id>"}' \
   [--agent] [--security] [--design] \
   [--ai-issues ./api-reports/ai-issues.json] \
   [--open]

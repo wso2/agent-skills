@@ -22,7 +22,7 @@ The assessment output is a single JSON object with this top-level shape:
     "assessedAt": "2026-04-25T10:30:00Z",
     "spectralVersion": "6.15.1",
     "guidelinesVersion": "agent-readiness-guidelines.md",
-    "model": "claude-sonnet-4-6"
+    "model": "<model-id>"
   }
 }
 ```
@@ -33,7 +33,7 @@ The assessment output is a single JSON object with this top-level shape:
 | `assessedAt` | ISO 8601 UTC timestamp of the assessment run |
 | `spectralVersion` | Output of `spectral --version`, or `"not-run"` if Spectral was skipped |
 | `guidelinesVersion` | Always `"agent-readiness-guidelines.md"` |
-| `model` | Claude model ID used |
+| `model` | agent model ID used |
 
 ---
 

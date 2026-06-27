@@ -5,10 +5,12 @@ This guide covers how to contribute to the WSO2 Agent Skills monorepo — adding
 ## Repo Layout
 
 ```
-.claude-plugin/marketplace.json   — marketplace index listing all plugins
+.claude-plugin/marketplace.json   — Claude Code marketplace index listing all plugins
+.agents/plugins/marketplace.json  — Codex marketplace index listing all plugins
 plugins/
   <plugin-name>/
-    .claude-plugin/plugin.json    — plugin metadata (name, version, author, license)
+    .claude-plugin/plugin.json    — Claude Code plugin metadata (name, version, author, license)
+    .codex-plugin/plugin.json     — Codex plugin metadata (same core fields + skills path + interface)
     README.md                     — plugin overview and skill list
     skills/
       <skill-name>/
@@ -16,6 +18,8 @@ plugins/
         references/               — reference docs the skill loads on demand
         scripts/                  — helper scripts the skill invokes
 ```
+
+Each plugin is packaged for both Claude Code and Codex from the same `skills/` content. The two manifests and two marketplace files must stay in sync — keep skill content platform-neutral (say "agent session", not "Claude Code session").
 
 ## Adding a New Plugin
 
@@ -25,7 +29,7 @@ plugins/
    plugins/<plugin-name>/
    ```
 
-2. **Add plugin metadata** at `plugins/<plugin-name>/.claude-plugin/plugin.json`:
+2. **Add Claude Code plugin metadata** at `plugins/<plugin-name>/.claude-plugin/plugin.json`:
 
    ```json
    {
@@ -40,11 +44,38 @@ plugins/
    }
    ```
 
+   **Also add Codex plugin metadata** at `plugins/<plugin-name>/.codex-plugin/plugin.json`. Reuse the same core fields, then add `skills` and the required `interface` block:
+
+   ```json
+   {
+     "name": "<plugin-name>",
+     "version": "0.1.0",
+     "description": "Short description of what the plugin does.",
+     "author": { "name": "WSO2", "url": "https://wso2.com" },
+     "homepage": "https://github.com/wso2/agent-skills",
+     "repository": "https://github.com/wso2/agent-skills",
+     "license": "Apache-2.0",
+     "keywords": ["wso2", "<topic>"],
+     "skills": "./skills/",
+     "interface": {
+       "displayName": "<Display Name>",
+       "shortDescription": "One-line subtitle.",
+       "longDescription": "Longer description for the details page.",
+       "developerName": "WSO2",
+       "category": "Engineering",
+       "capabilities": ["Interactive", "Read", "Write"],
+       "defaultPrompt": ["Example starter prompt."]
+     }
+   }
+   ```
+
 3. **Add one or more skills** under `plugins/<plugin-name>/skills/<skill-name>/SKILL.md`. Each `SKILL.md` should declare its triggers, workflow steps, and any allowed tools. Place supporting references in `references/` and helper scripts in `scripts/` next to the `SKILL.md`.
 
 4. **Add a plugin README** at `plugins/<plugin-name>/README.md` with a one-line summary, an install snippet, and a table of skills.
 
-5. **Register the plugin** in the top-level `.claude-plugin/marketplace.json` by appending an entry to the `plugins` array:
+5. **Register the plugin** in both marketplace files:
+
+   In the top-level `.claude-plugin/marketplace.json`, append to the `plugins` array:
 
    ```json
    {
@@ -53,6 +84,17 @@ plugins/
      "description": "Short description.",
      "category": "development",
      "tags": ["wso2", "<topic>"]
+   }
+   ```
+
+   In the top-level `.agents/plugins/marketplace.json`, append to the `plugins` array:
+
+   ```json
+   {
+     "name": "<plugin-name>",
+     "source": { "source": "local", "path": "./plugins/<plugin-name>" },
+     "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+     "category": "Engineering"
    }
    ```
 
@@ -99,9 +141,18 @@ The workflow additionally runs `node --check` / `bash -n` on bundled scripts to 
 
 To test the full marketplace install flow against your local checkout:
 
+In Claude Code:
+
 ```
 /plugin marketplace add /path/to/agent-skills
 /plugin install <plugin-name>@wso2-agent-skills
 ```
 
-This validates that `marketplace.json` and the plugin's `plugin.json` are consistent before you open a PR.
+In Codex:
+
+```bash
+codex plugin marketplace add /path/to/agent-skills
+codex plugin add <plugin-name>@wso2-agent-skills
+```
+
+This validates that both marketplace files and the plugin's manifests are consistent before you open a PR.

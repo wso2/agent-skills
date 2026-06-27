@@ -1,0 +1,27 @@
+{
+  "name": "agent-manager",
+  "version": "0.1.0",
+  "description": "Skill for driving the WSO2 agent-manager lifecycle through the amctl CLI — install, log in, create/deploy agents, watch builds, fetch logs and metrics, and triage runtime issues.",
+  "author": {
+    "name": "WSO2",
+    "url": "https://wso2.com"
+  },
+  "homepage": "https://github.com/wso2/agent-skills",
+  "repository": "https://github.com/wso2/agent-skills",
+  "license": "Apache-2.0",
+  "keywords": ["agent-manager", "amctl", "wso2", "ai-agents", "deployment"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "WSO2 Agent Manager",
+    "shortDescription": "Deploy and manage AI agents with the WSO2 agent-manager.",
+    "longDescription": "Skill for driving the full WSO2 agent-manager lifecycle through the amctl CLI. Install the CLI and log in, create and deploy agents, list projects and agents, watch build progress, fetch build and runtime logs and metrics, pull traces, and triage runtime failures with a structured build-to-traces diagnostic flow.",
+    "developerName": "WSO2",
+    "category": "Engineering",
+    "capabilities": ["Interactive", "Read", "Write"],
+    "defaultPrompt": [
+      "Set up amctl and log in to the agent-manager.",
+      "Create and deploy a new agent in my project.",
+      "Show error logs for my agent from the last hour."
+    ]
+  }
+}

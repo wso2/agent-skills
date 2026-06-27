@@ -31,6 +31,19 @@ Install a plugin:
 /plugin install agent-manager@wso2-agent-skills
 ```
 
+### Option 3 - Codex
+
+Register the marketplace:
+```bash
+codex plugin marketplace add wso2/agent-skills
+```
+
+Install a plugin:
+```bash
+codex plugin add api-platform@wso2-agent-skills
+codex plugin add agent-manager@wso2-agent-skills
+```
+
 ## Development
 
 See [DEVELOPMENT.md](./DEVELOPMENT.md) for instructions on adding new plugins.

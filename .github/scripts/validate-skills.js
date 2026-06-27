@@ -188,16 +188,25 @@ function validatePlugins() {
 
   const listed = new Set();
   for (const entry of json.plugins) {
-    const tag = `${mktRel} (plugin "${entry.name}")`;
-    listed.add(entry.name);
+    if (entry == null || typeof entry !== "object" || Array.isArray(entry)) {
+      err(mktRel, "each plugins entry must be an object");
+      continue;
+    }
+    const hasName = typeof entry.name === "string" && entry.name.trim() !== "";
+    const tag = `${mktRel} (plugin "${hasName ? entry.name : "<missing-name>"}")`;
+    if (!hasName) err(tag, "missing required field: name");
+    else listed.add(entry.name);
     if (!entry.source) {
       err(tag, "missing source");
     } else if (!entry.source.startsWith("./")) {
       err(tag, `source "${entry.source}" must start with "./"`);
-    } else if (!existsSync(join(ROOT, entry.source))) {
-      err(tag, `source "${entry.source}" does not resolve to a directory`);
+    } else {
+      const sourcePath = join(ROOT, entry.source);
+      if (!existsSync(sourcePath) || !statSync(sourcePath).isDirectory()) {
+        err(tag, `source "${entry.source}" does not resolve to a directory`);
+      }
     }
-    if (entry.name && !knownPlugins.has(entry.name)) {
+    if (hasName && !knownPlugins.has(entry.name)) {
       err(tag, `not found among plugin manifests (${[...knownPlugins].join(", ") || "none"})`);
     }
   }

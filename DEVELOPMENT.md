@@ -121,9 +121,10 @@ Tips:
 
 Every pull request runs `.github/workflows/validate.yml`, which enforces the [Agent Skills spec](https://agentskills.io/specification) and the documented [Claude Code plugin rules](https://code.claude.com/docs/en/plugins-reference). The validator is self-contained — it needs only Node and the `yaml` package, so it runs the same in CI and locally for any contributor. Run the same checks locally before opening a PR:
 
-```
+```bash
 npm ci
 node .github/scripts/validate-skills.js
+bash .github/scripts/check-script-syntax.sh
 ```
 
 The validator checks each skill and manifest for:

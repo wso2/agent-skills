@@ -9,7 +9,7 @@ Every skill lives at `plugins/<plugin>/skills/<skill-name>/SKILL.md`. `SKILL.md`
 - **Allowed tools** — which agent tools the skill may use
 - **Reference pointers** — which `references/`, `scripts/`, or `assets/` files to read and when
 
-Supporting material is split into `references/`, `scripts/`, and `assets/` siblings of `SKILL.md` so the skill body stays small and references load on demand.
+Supporting material is split into `references/`, `scripts/`, and `assets/` siblings of `SKILL.md` so the skill body stays small and references load on demand. A skill may also carry an `evals/` sibling holding its promptfoo eval suite (see [EVALS.md](./EVALS.md)).
 
 ## Contributing a New Skill
 
@@ -17,3 +17,4 @@ Supporting material is split into `references/`, `scripts/`, and `assets/` sibli
 2. Write `SKILL.md`.
 3. Add `references/`, `scripts/`, or `assets/` siblings as needed.
 4. Verify the skill triggers correctly before submitting (test prompts that should and should not activate it).
+5. Add an eval suite: `node tools/scaffold-eval.js <plugin> <skill-name>`, then fill in the starter tests. See [EVALS.md](./EVALS.md).

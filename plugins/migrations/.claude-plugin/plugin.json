@@ -1,0 +1,13 @@
+{
+  "name": "migrations",
+  "version": "0.1.0",
+  "description": "WSO2 Migrations skills: migrate Mirth Connect channel XML to compilable Ballerina integration projects.",
+  "author": {
+    "name": "WSO2",
+    "url": "https://wso2.com"
+  },
+  "homepage": "https://github.com/wso2/agent-skills",
+  "repository": "https://github.com/wso2/agent-skills",
+  "license": "Apache-2.0",
+  "keywords": ["migrations", "mirth", "ballerina", "hl7", "hl7v2", "wso2", "integration"]
+}

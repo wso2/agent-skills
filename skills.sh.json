@@ -9,6 +9,11 @@
       "title": "Agent Manager",
       "description": "Skills for building, deploying, and operating AI agents.",
       "skills": ["manage-agent"]
+    },
+    {
+      "title": "Migrations",
+      "description": "Skills for migrating Mirth Connect integrations to Ballerina.",
+      "skills": ["mirth-to-ballerina"]
     }
   ]
 }

@@ -1,0 +1,27 @@
+{
+  "name": "migrations",
+  "version": "0.1.0",
+  "description": "WSO2 Migrations skills: migrate Mirth Connect channel XML to compilable Ballerina integration projects.",
+  "author": {
+    "name": "WSO2",
+    "url": "https://wso2.com"
+  },
+  "homepage": "https://github.com/wso2/agent-skills",
+  "repository": "https://github.com/wso2/agent-skills",
+  "license": "Apache-2.0",
+  "keywords": ["migrations", "mirth", "ballerina", "hl7", "hl7v2", "wso2", "integration"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "WSO2 Migrations",
+    "shortDescription": "Migrate Mirth Connect channels to Ballerina integration projects.",
+    "longDescription": "Skill for migrating Mirth Connect channel XML into compilable Ballerina integration projects. Prioritizes HL7v2 MLLP/LLP listeners and TCP senders, and translates JavaScript transformers, filters, and channel-level scripts into idiomatic Ballerina code using the xlibb/pipeline module, generating typed stubs with full contract comments where the translation is ambiguous.",
+    "developerName": "WSO2",
+    "category": "Engineering",
+    "capabilities": ["Interactive", "Read", "Write"],
+    "defaultPrompt": [
+      "Migrate this Mirth Connect channel.xml to a Ballerina project.",
+      "How do I implement an HL7v2 MLLP listener in Ballerina?",
+      "Translate this Mirth JavaScript transformer to Ballerina."
+    ]
+  }
+}

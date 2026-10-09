@@ -140,6 +140,17 @@ Worth knowing before you write the entry:
   `SKILL.md` files present in the repo it is pointed at. Name the upstream repo in the README so
   those users can install it directly.
 
+A local plugin can depend on a referenced one: list it by entry name in the local plugin's
+`plugin.json`, and installing the local plugin installs the referenced one too.
+
+```json
+"dependencies": ["ballerina"]
+```
+
+Bare names resolve in this marketplace. `claude plugin update` does not install a dependency
+added in a later version — users must re-run `/plugin install` — so call that out in the README
+whenever you add one to an existing plugin.
+
 ## Evaluating Skills
 
 Each skill carries a promptfoo eval suite under `evals/` that runs the skill the

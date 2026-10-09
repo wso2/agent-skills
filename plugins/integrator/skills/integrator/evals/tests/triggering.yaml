@@ -1,0 +1,72 @@
+# Triggering / routing — WSO2 Integrator-level work activates integrator;
+# plain Ballerina work stays with the Ballerina skill.
+
+- description: "T1 integrator: new integration in a WSO2 Integrator project"
+  vars:
+    request: >-
+      I'm using WSO2 Integrator. Add a new integration to my project that reads a CSV
+      file from an FTP server every hour and upserts the rows into Salesforce. Show the
+      files in your reply instead of writing them.
+  assert:
+    - type: skill-used
+      value: integrator
+    - type: skill-used
+      value: ballerina
+    - type: llm-rubric
+      value: >-
+        PASS only if the reply (a) calls the new unit an "integration" and never
+        uses "workspace" or "package" in its own words (TOML keys, code, and quoted
+        tool output are exempt), (b) says the hourly schedule is configured at
+        deployment rather than written as a timer or cron in code, and (c) does
+        not ask the user to install a skill or plugin (the Ballerina skill is
+        available). Adding Ballerina library dependencies is fine.
+
+- description: "T2 integrator: WSO2 Integrator automation"
+  vars:
+    request: >-
+      Create a WSO2 Integrator automation that posts new GitHub issues to a Slack channel.
+      Show the files in your reply instead of writing them.
+  assert:
+    - type: skill-used
+      value: integrator
+    - type: skill-used
+      value: ballerina
+    - type: llm-rubric
+      value: >-
+        PASS only if the reply (a) builds it as an integration with a main function
+        (an automation), not an HTTP service or webhook listener, (b) leaves how
+        often it runs to deployment configuration rather than a timer, loop, or cron
+        expression written in the code, and (c) declares every configurable without a
+        default value (for example `configurable string slackChannel = ?;`).
+
+- description: "T3 boundary: plain Ballerina HTTP service goes to the Ballerina skill"
+  vars:
+    request: "Write a Ballerina HTTP service with a GET /hello resource that returns a greeting."
+  assert:
+    - type: not-skill-used
+      value: integrator
+    - type: skill-used
+      value: ballerina
+
+- description: "T4 boundary: Ballerina language question goes to the Ballerina skill"
+  vars:
+    request: "In Ballerina, what is the difference between check and checkpanic?"
+  assert:
+    - type: not-skill-used
+      value: integrator
+
+- description: "T5 boundary: plain-Ballerina integration with no product cue goes to the Ballerina skill"
+  vars:
+    request: >-
+      Write a Ballerina program that reads a CSV file from an FTP server and upserts
+      the rows into Salesforce. Show the files in your reply instead of writing them.
+  assert:
+    - type: not-skill-used
+      value: integrator
+
+- description: "T7 integrator: the plugin README's example prompt, as a user types it"
+  vars:
+    request: "Add a library integration for shared date helpers to my WSO2 Integrator project."
+  assert:
+    - type: skill-used
+      value: integrator

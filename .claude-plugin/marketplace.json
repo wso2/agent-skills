@@ -24,15 +24,22 @@
     },
     {
       "name": "integrator",
+      "source": "./plugins/integrator",
+      "description": "Skills for WSO2 Integrator — build integrations, automations, and services with WSO2 Integrator conventions. Installs the Ballerina plugin alongside for writing, running, and testing the code.",
+      "category": "development",
+      "tags": ["wso2", "integrator", "integration", "automation"]
+    },
+    {
+      "name": "ballerina",
       "source": {
         "source": "url",
         "url": "https://github.com/ballerina-platform/skills.git",
         "ref": "main"
       },
-      "displayName": "WSO2 Integrator",
-      "description": "Skills for WSO2 Integrator — write services and integrations in Ballerina, discover connectors and libraries from Ballerina Central, and build, run, and test projects, plus language-server code intelligence for .bal files.",
+      "displayName": "Ballerina",
+      "description": "Write, build, run, and test Ballerina integrations and services, discover connectors from Ballerina Central, and get language-server code intelligence for .bal files. Installed automatically with integrator.",
       "category": "development",
-      "tags": ["wso2", "integrator", "ballerina", "integration", "cloud-native"]
+      "tags": ["wso2", "ballerina", "lsp", "integration"]
     },
     {
       "name": "healthcare",

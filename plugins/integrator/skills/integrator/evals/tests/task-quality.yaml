@@ -1,0 +1,42 @@
+# Core task quality for the integrator skill.
+
+- description: "Q2 library integration: lib.bal and strict.library import"
+  vars:
+    request: >-
+      Use the integrator skill. My WSO2 Integrator project is in projects/multi. Add a
+      library integration called shared_utils for common date helpers. Tell me exactly which files to create or change
+      and what goes in them, instead of writing them.
+  assert:
+    - type: skill-used
+      value: integrator
+    - type: contains
+      value: "lib.bal"
+    - type: contains
+      value: "import wso2/strict.library as _;"
+    - type: llm-rubric
+      value: >-
+        PASS only if the reply (a) creates shared_utils as its own directory with a
+        Ballerina.toml containing a [package] section, (b) adds that directory to the
+        packages array of the root workspace Ballerina.toml, (c) includes a lib.bal with
+        `import wso2/strict.library as _;`, and (d) in its own words uses "integration"
+        and "project" rather than "package" and "workspace" (TOML keys such as
+        `packages`, code, and quoted tool output are exempt).
+      threshold: 0.7
+
+- description: "Q3 single-integration project is not restructured into a workspace"
+  vars:
+    request: >-
+      Use the integrator skill. My WSO2 Integrator project is in projects/single. Add a
+      GET /stock resource to it that returns an empty JSON array. Show the changes in your
+      reply instead of writing them.
+  assert:
+    - type: skill-used
+      value: integrator
+    - type: not-contains
+      value: "[workspace]"
+    - type: llm-rubric
+      value: >-
+        PASS only if the reply adds the resource to the existing integration in place
+        and does not add a [workspace] section, move files into a new sub-directory, or
+        otherwise restructure the project into multiple integrations.
+      threshold: 0.7

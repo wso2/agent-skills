@@ -1,0 +1,23 @@
+# Run by promptfooconfig.no-ballerina.yaml, where only the integrator skill is
+# enabled, so the Ballerina skill is genuinely unavailable.
+
+- description: "Q1 missing Ballerina skill: give the install command"
+  vars:
+    request: >-
+      Use the integrator skill. Build me a WSO2 Integrator integration that copies new
+      Salesforce leads into a PostgreSQL table.
+  assert:
+    - type: skill-used
+      value: integrator
+    - type: contains-any
+      value:
+        - "/plugin install"
+        - "npx skills add ballerina-platform/skills"
+    - type: llm-rubric
+      value: >-
+        PASS only if the reply says the Ballerina skill is not available, asks the user to
+        run at least one correct install command (`/plugin install … @wso2-agent-skills` or
+        `npx skills add ballerina-platform/skills`) rather than claiming to install it
+        itself, and does not write the integration's Ballerina code before that skill is
+        installed.
+      threshold: 0.7

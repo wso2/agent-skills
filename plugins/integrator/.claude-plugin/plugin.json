@@ -1,0 +1,15 @@
+{
+  "name": "integrator",
+  "displayName": "WSO2 Integrator",
+  "version": "0.5.0",
+  "description": "WSO2 Integrator skills: build integrations, automations, and services with WSO2 Integrator conventions, with the Ballerina plugin doing the code work.",
+  "author": {
+    "name": "WSO2",
+    "url": "https://wso2.com"
+  },
+  "homepage": "https://github.com/wso2/agent-skills",
+  "repository": "https://github.com/wso2/agent-skills",
+  "license": "Apache-2.0",
+  "keywords": ["wso2", "integrator", "integration", "automation", "ballerina"],
+  "dependencies": ["ballerina"]
+}

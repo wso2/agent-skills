@@ -1,0 +1,63 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+
+# Eval suite for the "integrator" skill. The agent SDK discovers it from the
+# fixture workspace and runs it as a real skill (see EVALS.md at the repo root).
+#
+# Run from this directory:
+#   npm install
+#   npx promptfoo@latest eval -c promptfooconfig.yaml -o output.json --no-cache --no-share
+#   npx promptfoo@latest view
+#
+# Requires Node >= 22.22 and provider auth: run `claude` once (Claude) and/or
+# `codex` once (Codex — logs in via your ChatGPT account). No API key is needed
+# locally; set ANTHROPIC_API_KEY / OPENAI_API_KEY only where no login exists (CI).
+# After editing the skill, refresh the fixture copies from the repo root:
+#   node tools/sync-fixtures.js integrator integrator
+
+description: "integrator skill evals"
+
+# Built-in OTel tracing (no external collector). View per-result under the 🔎
+# icon -> Trace Timeline. Tool calls are in each result's Metadata, not spans.
+tracing:
+  enabled: true
+  otlp:
+    http:
+      enabled: true
+      port: 4318
+      host: 127.0.0.1
+      acceptFormats: ["json", "protobuf"]
+
+prompts:
+  - "{{request}}"
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    label: integrator
+    config:
+      model: claude-sonnet-4-6
+      apiKeyRequired: false        # reuse the Claude Code login; no API key needed
+      working_dir: ./fixtures/workspace
+      setting_sources: ["project"] # discover .claude/skills/
+      skills: ["integrator", "ballerina"]   # also auto-allows the Skill tool (SDK >= 0.2.120)
+      # Read/Grep/Glob let the skill read its references and any sample files.
+      # Add Write/Edit only if a test needs file edits.
+      append_allowed_tools: ["Read", "Grep", "Glob"]
+
+defaultTest:
+  options:
+    disableVarExpansion: true
+    # Grader for model-graded (llm-rubric) assertions. Keep it fixed (one
+    # provider) so scores stay comparable across the providers-under-test.
+    # Default is claude; re-scaffold with --grader to change it.
+    provider:
+      id: anthropic:claude-agent-sdk
+      label: grader
+      config:
+        model: claude-sonnet-4-6
+        apiKeyRequired: false
+  # NOTE: skill-used is asserted per-test (not here), so boundary/negative tests
+  # can assert not-skill-used. See tests/.
+
+tests:
+  - file://tests/triggering.yaml
+  - file://tests/task-quality.yaml

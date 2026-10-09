@@ -1,0 +1,4 @@
+[package]
+org = "acme"
+name = "inventory"
+version = "0.1.0"

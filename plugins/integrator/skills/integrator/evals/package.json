@@ -1,0 +1,14 @@
+{
+  "name": "integrator-evals",
+  "private": true,
+  "description": "Promptfoo eval suite for the integrator skill.",
+  "scripts": {
+    "sync": "node ../../../../../tools/sync-fixtures.js integrator integrator && mkdir -p fixtures/workspace/.claude/skills/ballerina && cp fixtures/stubs/ballerina-skill.md fixtures/workspace/.claude/skills/ballerina/SKILL.md",
+    "eval": "npm run -s sync && npx promptfoo@latest eval -c promptfooconfig.yaml -o output.json --no-cache --no-share",
+    "eval:no-ballerina": "npm run -s sync && npx promptfoo@latest eval -c promptfooconfig.no-ballerina.yaml --no-cache --no-share",
+    "view": "npx promptfoo@latest view"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.195"
+  }
+}

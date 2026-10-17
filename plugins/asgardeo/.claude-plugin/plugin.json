@@ -1,0 +1,13 @@
+{
+  "name": "asgardeo",
+  "version": "0.1.0",
+  "description": "Skill for managing Asgardeo end-to-end through the asg CLI — install and authenticate, manage applications, users, groups, roles, identity providers, API resources, scopes, branding, organizations, and agents, then integrate the matching Asgardeo SDK into your app.",
+  "author": {
+    "name": "WSO2",
+    "url": "https://wso2.com"
+  },
+  "homepage": "https://github.com/wso2/agent-skills",
+  "repository": "https://github.com/wso2/agent-skills",
+  "license": "Apache-2.0",
+  "keywords": ["asgardeo", "asg", "wso2", "authentication", "oidc", "sso"]
+}

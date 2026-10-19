@@ -29,6 +29,18 @@
       "category": "Development"
     },
     {
+      "name": "asgardeo",
+      "source": {
+        "source": "local",
+        "path": "./plugins/asgardeo"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Development"
+    },
+    {
       "name": "healthcare",
       "source": {
         "source": "local",

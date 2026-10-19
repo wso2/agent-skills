@@ -23,6 +23,13 @@
       "tags": ["wso2", "agent-manager", "amctl", "ai-agents", "deployment"]
     },
     {
+      "name": "asgardeo",
+      "source": "./plugins/asgardeo",
+      "description": "Skill for managing Asgardeo through the asg CLI — install and authenticate, manage applications, users, groups, roles, identity providers, API resources, scopes, branding, organizations, and agents, then integrate the Asgardeo SDK into your app.",
+      "category": "development",
+      "tags": ["wso2", "asgardeo", "authentication", "oidc"]
+    },
+    {
       "name": "integrator",
       "source": "./plugins/integrator",
       "description": "Skills for WSO2 Integrator — build integrations, automations, and services with WSO2 Integrator conventions. Installs the Ballerina plugin alongside for writing, running, and testing the code.",

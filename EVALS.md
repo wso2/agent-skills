@@ -212,3 +212,33 @@ node tools/sync-fixtures.js --all              # every skill that has evals/
   makes a stubbed CLI's shared state file safe; `-j 2` is a good default.
 - **Cost.** Agent-SDK evals are multi-turn and graded — each run bills the API.
   Run them on changed skills, not on every save.
+
+## Evaluating an MCP server
+
+An MCP server's own repo can hold a suite that runs an agent against the real
+server, limited to that server's tools.
+[`tools/eval-kit`](./tools/eval-kit/README.md) (`@wso2/eval-kit`) is the shared
+glue: OAuth sign-in to the server, a runner with telemetry, sharing and logs off,
+run comparison against a pinned baseline, a `tools/list` diff and a cost cap. The
+suite keeps only what is specific to the server:
+
+```text
+<repo>/<path>/mcp-evals/
+  package.json          # @wso2/eval-kit from its release tarball, promptfoo and the agent SDK pinned
+  suite.json            # server, env prefix, OAuth client, callback port, url
+  promptfooconfig.yaml  # the agent provider, limited to mcp__<server>__*
+  tests/<case>.yaml
+```
+
+- `npm run eval` signs in (browser the first time, then the cached or refreshed
+  token), runs each case 3 times and passes a case at 2 of 3.
+- `npm run pin -- latest` makes a good run the baseline; after a change to the
+  server, `npm run tools -- --diff` shows the changed tool fields and
+  `npm run compare` gives a per-case verdict against the baseline.
+- Grade against the tool results (`lib/asserts.js:replyWithToolResults`), not
+  data typed into the rubric, so cases survive data changes.
+- Install the kit from a release (`eval-kit-v<version>`) so the lockfile pins
+  its hash.
+
+`eval-kit compare`, `pin` and the cost cap (`lib/capped.js`) work for skill suites
+too: without a `suite.json`, `eval-kit eval` skips the sign-in.

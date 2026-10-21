@@ -1,0 +1,71 @@
+name: eval-kit
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "tools/eval-kit/**"
+      - ".github/workflows/eval-kit.yml"
+  push:
+    tags: ["eval-kit-v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test eval-kit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "22"
+
+      - name: Run tests
+        working-directory: tools/eval-kit
+        run: node --test
+
+  release:
+    name: Release eval-kit
+    if: startsWith(github.ref, 'refs/tags/eval-kit-v')
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "22"
+
+      - name: Pack
+        id: pack
+        working-directory: tools/eval-kit
+        run: |
+          version="$(node -p 'require("./package.json").version')"
+          if [ "eval-kit-v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME does not match package.json version $version" >&2
+            exit 1
+          fi
+          echo "tgz=tools/eval-kit/$(npm pack --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TGZ: ${{ steps.pack.outputs.tgz }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$TGZ"
+          else
+            gh release create "$GITHUB_REF_NAME" "$TGZ" --verify-tag --title "eval-kit ${GITHUB_REF_NAME#eval-kit-v}" --notes "eval-kit ${GITHUB_REF_NAME#eval-kit-v}"
+          fi

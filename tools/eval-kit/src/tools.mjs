@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { baselineId } from './compare.mjs';
-import { getToken } from './login.mjs';
+import { checkUrl, getToken } from './login.mjs';
 import { loadSuite, RESULTS_DIR } from './suite.mjs';
 
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -51,6 +51,7 @@ function parseRpc(text, id) {
 }
 
 export async function listTools(url, token) {
+  checkUrl(url);
   let session;
   let id = 0;
   const rpc = async (method, params, notify = false) => {

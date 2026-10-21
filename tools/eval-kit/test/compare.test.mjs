@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { compare, passes, summarize } from '../src/compare.mjs';
 
-function exp(id, outcomes, { model = 'm', judge = 'j', prompt = 'List my agents.', cost = 0.05, turns = 2, tools = ['list_agents'] } = {}) {
+function exp(id, outcomes, { model = 'm', judge = 'j', prompt = 'List my agents.', cost = 0.05, turns = 2, tools = ['list_agents'], description = 'list-agents' } = {}) {
   return {
     evalId: id,
     config: { prompts: ['{{prompt}}'], providers: [{ config: { model } }], defaultTest: { options: { provider: { config: { model: judge } } } } },
     results: { results: [...outcomes].map((o, i) => ({
-      testIdx: 0, success: o === 'P', failureReason: o === 'P' ? 0 : o === 'F' ? 1 : 2,
-      testCase: { description: 'list-agents', vars: { prompt, sessionId: `s-${id}-${i}` }, assert: [{ type: 'javascript' }] },
+      testIdx: i, promptIdx: 0, success: o === 'P', failureReason: o === 'P' ? 0 : o === 'F' ? 1 : 2,
+      testCase: { description, vars: { prompt, sessionId: `s-${id}-${i}` }, assert: [{ type: 'javascript' }] },
       response: o === 'E' ? undefined : { cost, metadata: { numTurns: turns, toolCalls: tools.map((t) => ({ name: `mcp__s__${t}` })) } },
       cost,
     })) },
@@ -52,4 +52,21 @@ test('2 of 3 runs pass a case', () => {
   assert.equal(passes(c('PPE')), true);
   assert.equal(passes(c('PFF')), false);
   assert.equal(passes(c('PEE')), false);
+});
+
+test('repeats of a case without a description stay one case', () => {
+  const { cases } = summarize(exp('x', 'PPF', { description: undefined }));
+  assert.equal(cases.size, 1);
+  assert.equal(passes([...cases.values()][0]), true);
+});
+
+test('a different number of runs is NOT COMPARABLE', () => {
+  assert.equal(run(exp('a', 'PPP'), exp('b', 'PPPFFF')).verdict, 'NOT COMPARABLE');
+});
+
+test('each provider of a run is its own case', () => {
+  const e = exp('x', 'PPPFFF');
+  e.results.prompts = [{ provider: 'claude' }, { provider: 'codex' }];
+  e.results.results.forEach((r, i) => (r.promptIdx = i < 3 ? 0 : 1));
+  assert.deepEqual([...summarize(e).cases.keys()], ['[claude/0] list-agents', '[codex/1] list-agents']);
 });

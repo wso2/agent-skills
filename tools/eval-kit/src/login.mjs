@@ -105,24 +105,46 @@ function writeCache(file, data) {
   fs.renameSync(tmp, file);
 }
 
+function lockOwner(lock) {
+  try {
+    return Number(fs.readFileSync(lock, 'utf8')) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function alive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e.code === 'EPERM';
+  }
+}
+
 async function withLock(file, fn) {
   const lock = `${file}.lock`;
-  for (let fd; ; ) {
+  for (let waiting = false; ; ) {
     try {
-      fd = fs.openSync(lock, 'wx', 0o600);
-      fs.closeSync(fd);
+      fs.writeFileSync(lock, String(process.pid), { flag: 'wx', mode: 0o600 });
       break;
     } catch (e) {
       if (e.code !== 'EEXIST') throw e;
+      const owner = lockOwner(lock);
       const age = Date.now() - (fs.statSync(lock, { throwIfNoEntry: false })?.mtimeMs ?? Date.now());
-      if (age > LOCK_STALE_MS) fs.rmSync(lock, { force: true });
-      else await new Promise((r) => setTimeout(r, 250));
+      if ((owner && !alive(owner)) || age > LOCK_STALE_MS) {
+        fs.rmSync(lock, { force: true });
+        continue;
+      }
+      if (!waiting) process.stderr.write(`waiting for another sign-in to finish (${lock})\n`);
+      waiting = true;
+      await new Promise((r) => setTimeout(r, 250));
     }
   }
   try {
     return await fn();
   } finally {
-    fs.rmSync(lock, { force: true });
+    if (lockOwner(lock) === process.pid) fs.rmSync(lock, { force: true });
   }
 }
 

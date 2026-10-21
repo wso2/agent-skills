@@ -74,7 +74,8 @@ providers:
 
 - A case moves only when its pass count changes by at least half its runs, rounded up. A smaller change shows as `~`.
 - Errored runs show as `k/n+Ee` and make the verdict INCONCLUSIVE.
-- A different agent model, judge model, or prompt or assertions of a case make it NOT COMPARABLE.
+- A different agent model, judge model, prompt, assertions or number of runs of a case make it NOT COMPARABLE.
+- A case is its description (or a hash of its vars and assertions), per provider and prompt when a run has several.
 - Turns are flagged `!` at a median change of 2 or more, agent cost per run at 25% or more.
 
 ## Safety
@@ -82,9 +83,9 @@ providers:
 - Everything the kit writes is owner-only (umask 077). `.promptfoo/` and `results/` hold prompts, replies and tool inputs and outputs; keep them out of git.
 - `.state/` holds OAuth tokens, written atomically. The token reaches the agent only as `<env>_TOKEN`, used literally as `Bearer ${<env>_TOKEN}`, so promptfoo never stores it. On macOS, `ps eww` shows a process's environment to the same user.
 - promptfoo runs with `PROMPTFOO_CONFIG_DIR` in the suite and with telemetry, update checks, sharing, remote generation and its log files off. It passes its environment to the agent, so it gets only the variables a run needs; `ANTHROPIC_API_KEY` is not one of them.
-- promptfoo's viewer has no auth; the kit binds every server it starts to 127.0.0.1.
+- promptfoo's viewer has no auth and allows any CORS origin; the kit binds every server it starts to 127.0.0.1 and refuses requests whose `Host` or `Origin` is not local.
 - MCP, IdP and token URLs must be https, or http on a local host. Token requests never follow redirects.
-- Each run stops at `EVAL_BUDGET_USD` (default 2) of agent and judge cost. A judge call stopped by it shows as an error, not a failure.
+- Each run starts no call once `EVAL_BUDGET_USD` (default 2) of agent and judge cost is spent; calls already running can take it over by up to their own `max_budget_usd` each. A judge call stopped by it shows as an error, not a failure.
 
 ## Releasing
 

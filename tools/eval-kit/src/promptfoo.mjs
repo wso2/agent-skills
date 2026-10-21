@@ -1,7 +1,6 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { PROMPTFOO_DIR, SUITE_DIR } from './suite.mjs';
 
 const PASS_THROUGH = ['PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'TMPDIR', 'LANG', 'LC_ALL', 'TERM', 'CLAUDE_CONFIG_DIR', 'NODE_EXTRA_CA_CERTS', 'EVAL_BUDGET_USD'];
@@ -28,13 +27,13 @@ export function promptfoo(args, { env = promptfooEnv(), capture = false } = {}) 
   process.umask(0o077);
   fs.mkdirSync(PROMPTFOO_DIR, { recursive: true, mode: 0o700 });
   const bin = path.join(SUITE_DIR, 'node_modules', 'promptfoo', 'dist', 'src', 'entrypoint.js');
-  const child = spawn(process.execPath, ['--import', fileURLToPath(new URL('./loopback.mjs', import.meta.url)), bin, ...args],
+  const child = spawn(process.execPath, ['--import', new URL('./loopback.mjs', import.meta.url).href, bin, ...args],
     { cwd: SUITE_DIR, env, stdio: capture ? ['ignore', 'pipe', 'inherit'] : 'inherit' });
   let out = '';
   child.stdout?.on('data', (d) => (out += d));
   return new Promise((resolve, reject) => {
     child.on('error', reject);
-    child.on('close', (code) => resolve({ code, out }));
+    child.on('close', (code) => resolve({ code: code ?? 1, out }));
   });
 }
 

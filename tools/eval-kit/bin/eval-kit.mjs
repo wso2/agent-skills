@@ -17,7 +17,7 @@ const commands = {
   test: async () => {
     const dir = fileURLToPath(new URL('../test/', import.meta.url));
     const files = fs.readdirSync(dir).filter((f) => f.endsWith('.test.mjs')).map((f) => dir + f);
-    return spawnSync(process.execPath, ['--test', ...files], { stdio: 'inherit' }).status;
+    return spawnSync(process.execPath, ['--test', ...files], { stdio: 'inherit' }).status ?? 1;
   },
 };
 

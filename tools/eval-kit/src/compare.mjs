@@ -11,18 +11,21 @@ const median = (xs) => {
   return s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : 0;
 };
 const short = (name) => name.split('__').pop();
+const modelOf = (p) => (typeof p === 'string' ? p : p?.config?.model ?? p?.id);
 
 export function summarize(exp) {
   const cfg = exp.config ?? {};
+  const combos = exp.results?.prompts ?? [];
   const cases = new Map();
   for (const r of exp.results?.results ?? []) {
-    const name = r.testCase?.description ?? `#${r.testIdx}`;
-    if (!cases.has(name)) {
-      const { sessionId, ...vars } = r.testCase?.vars ?? {};
-      const content = JSON.stringify({ prompts: cfg.prompts, vars, assert: r.testCase?.assert });
-      cases.set(name, { k: 0, n: 0, e: 0, turns: [], cost: 0, tools: new Set(), hash: createHash('sha256').update(content).digest('hex').slice(0, 12) });
-    }
+    const { sessionId, ...vars } = r.testCase?.vars ?? {};
+    const content = JSON.stringify({ prompts: cfg.prompts, vars, assert: r.testCase?.assert });
+    const hash = createHash('sha256').update(content).digest('hex').slice(0, 12);
+    const combo = combos.length > 1 ? `[${combos[r.promptIdx]?.provider ?? ''}/${r.promptIdx}] ` : '';
+    const name = `${combo}${r.testCase?.description ?? `#${hash}`}`;
+    if (!cases.has(name)) cases.set(name, { k: 0, n: 0, e: 0, turns: [], cost: 0, tools: new Set(), hashes: new Set() });
     const c = cases.get(name);
+    c.hashes.add(hash);
     if (r.failureReason === ERROR) {
       c.e += 1;
       continue;
@@ -34,9 +37,9 @@ export function summarize(exp) {
     c.cost += r.response?.cost ?? r.cost ?? 0;
     c.tools.add((meta.toolCalls ?? []).map((t) => short(t.name)).join(' > ') || '(none)');
   }
-  const provider = cfg.providers?.[0]?.config ?? {};
-  const judge = cfg.defaultTest?.options?.provider?.config ?? {};
-  return { id: exp.evalId, model: provider.model, judge: judge.model, cases };
+  for (const c of cases.values()) c.hash = [...c.hashes].sort().join('+');
+  const model = [cfg.providers ?? []].flat().map(modelOf).join(', ') || undefined;
+  return { id: exp.evalId, model, judge: modelOf(cfg.defaultTest?.options?.provider), cases };
 }
 
 export const passes = (c) => c.n + c.e > 0 && c.k * 3 >= (c.n + c.e) * 2;
@@ -60,9 +63,10 @@ export function compare(a, b) {
       continue;
     }
     if (x.hash !== y.hash) reasons.push(`${name} changed`);
+    if (x.n + x.e !== y.n + y.e) reasons.push(`${name} runs ${x.n + x.e} -> ${y.n + y.e}`);
     const d = y.k - x.k;
     const need = Math.ceil(Math.max(x.n, y.n) / 2);
-    const move = d >= need ? 'UP' : d <= -need ? 'DOWN' : d ? '~' : '=';
+    const move = !d ? '=' : d >= need ? 'UP' : d <= -need ? 'DOWN' : '~';
     moves.push(move);
     const [tx, ty] = [median(x.turns), median(y.turns)];
     const [cx, cy] = [x.cost / Math.max(x.n, 1), y.cost / Math.max(y.n, 1)];

@@ -26,6 +26,10 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Install the pinned promptfoo for the end-to-end test
+        working-directory: tools/eval-kit
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
       - name: Run tests
         working-directory: tools/eval-kit
         run: node --test

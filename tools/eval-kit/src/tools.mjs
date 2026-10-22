@@ -1,8 +1,10 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { baselineId } from './compare.mjs';
-import { checkUrl, getToken } from './login.mjs';
-import { loadSuite, RESULTS_DIR } from './suite.mjs';
+import { getToken, pickServers } from './login.mjs';
+import { baselineId, resolveRef, runDir } from './results.mjs';
+import { loadSuite, requireSuiteDir, suitePaths } from './suite.mjs';
+import { checkUrl } from './url.mjs';
 
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
@@ -13,6 +15,7 @@ function sortKeys(v) {
 }
 
 export const canonical = (tools) => [...tools].sort((a, b) => a.name.localeCompare(b.name)).map(sortKeys);
+export const hashTools = (tools) => createHash('sha256').update(JSON.stringify(canonical(tools))).digest('hex').slice(0, 12);
 
 function fieldDiff(a, b, at, out) {
   if (isObject(a) && isObject(b)) {
@@ -84,21 +87,67 @@ export function writeSnapshot(file, tools) {
   fs.writeFileSync(file, JSON.stringify(tools, null, 2) + '\n', { mode: 0o600 });
 }
 
-export async function toolsMain(args) {
-  const s = loadSuite();
-  if (!s.url) throw new Error('suite.json has no MCP url');
-  const { accessToken } = await getToken({ url: s.authFrom, clientId: s.clientId, callbackPort: s.callbackPort });
-  const tools = await listTools(s.url, accessToken);
-  if (!args.includes('--diff')) {
-    console.log(JSON.stringify(tools, null, 2));
-    return 0;
+function readToolsFile(file) {
+  try {
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const tools = Array.isArray(data) ? data : data?.tools;
+    return Array.isArray(tools) ? canonical(tools) : undefined;
+  } catch {
+    return undefined;
   }
-  const ref = args[args.indexOf('--diff') + 1] ?? baselineId();
-  if (!/^eval-[\w:.-]+$/.test(ref ?? '')) {
-    console.error('no baseline: eval-kit pin <eval id>');
-    return 2;
+}
+
+export const LEGACY_SERVER = '';
+
+export function runTools(dir) {
+  const out = {};
+  for (const kind of ['tools', 'served']) {
+    const sub = path.join(dir, kind);
+    if (!fs.existsSync(sub)) continue;
+    for (const f of fs.readdirSync(sub).filter((f) => /^[a-z0-9-]+\.json$/.test(f))) {
+      const tools = readToolsFile(path.join(sub, f));
+      if (tools) (out[f.slice(0, -5)] ??= {})[kind === 'tools' ? 'upstream' : 'served'] = tools;
+    }
   }
-  const lines = diffTools(JSON.parse(fs.readFileSync(path.join(RESULTS_DIR, ref, 'tools.json'), 'utf8')), tools);
-  console.log(lines.length ? lines.join('\n') : `no tool changes since ${ref}`);
+  const legacy = readToolsFile(path.join(dir, 'tools.json'));
+  if (legacy && !Object.keys(out).length) out[LEGACY_SERVER] = { upstream: legacy };
+  return out;
+}
+
+export async function toolsMain(args, { dir } = {}) {
+  requireSuiteDir(dir);
+  const s = loadSuite(dir);
+  const p = suitePaths(s.dir);
+  if (!s.servers.length) throw new Error('suite.json has no MCP servers');
+  const servers = pickServers(s.servers, args);
+  const diffAt = args.indexOf('--diff');
+  let ref;
+  let snapshots;
+  if (diffAt >= 0) {
+    const arg = args[diffAt + 1];
+    ref = arg && !arg.startsWith('--') ? resolveRef(arg, { resultsDir: p.results }) : baselineId(p.results);
+    if (!ref) {
+      console.error('no baseline: eval-kit pin <ref>, or eval-kit tools --diff <ref>');
+      return 2;
+    }
+    snapshots = runTools(runDir(ref, p.results));
+  }
+  const all = {};
+  for (const server of servers) {
+    const { token } = await getToken(server, { stateDir: p.state });
+    const tools = await listTools(server.url, token);
+    if (!snapshots) {
+      all[server.name] = tools;
+      continue;
+    }
+    const old = (snapshots[server.name] ?? (s.servers.length === 1 ? snapshots[LEGACY_SERVER] : undefined))?.upstream;
+    if (!old) {
+      console.log(`[${server.name}] no snapshot in ${ref}`);
+      continue;
+    }
+    const lines = diffTools(old, tools);
+    console.log(lines.length ? lines.map((l) => `[${server.name}] ${l}`).join('\n') : `[${server.name}] no tool changes since ${ref}`);
+  }
+  if (!snapshots) console.log(JSON.stringify(s.servers.length === 1 ? all[servers[0].name] : all, null, 2));
   return 0;
 }

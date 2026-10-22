@@ -3,32 +3,19 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { loadSuite, STATE_DIR } from './suite.mjs';
+import { redact } from './redact.mjs';
+import { loadSuite, requireSuiteDir, STATE_DIR, suitePaths } from './suite.mjs';
+import { checkUrl, LoginError } from './url.mjs';
 
-const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\]|.+\.localhost|(.+\.)?127\.0\.0\.1\.(nip|sslip)\.io)$/;
+export { checkUrl, LoginError };
+
 const TIMEOUT_MS = 30_000;
 const CALLBACK_TIMEOUT_MS = 300_000;
 const LOCK_STALE_MS = CALLBACK_TIMEOUT_MS + 60_000;
-
-export class LoginError extends Error {
-  constructor(step, message) {
-    super(`${step}: ${message}`);
-    this.step = step;
-  }
-}
-
-export function checkUrl(url, step = 'url') {
-  let u;
-  try {
-    u = new URL(url);
-  } catch {
-    throw new LoginError(step, `not a URL: ${url}`);
-  }
-  if (u.protocol === 'https:' || (u.protocol === 'http:' && LOCAL_HOST.test(u.hostname.toLowerCase()))) return u;
-  throw new LoginError(step, `use https, or http only for a local host: ${url}`);
-}
+const STATE_FILE = /^[0-9a-f]{16}\.json(\.lock|\.\d+\.tmp)?$/;
 
 const b64url = (buf) => buf.toString('base64url');
+const now = () => Math.floor(Date.now() / 1000);
 
 async function getJson(url) {
   try {
@@ -55,7 +42,7 @@ async function challengeMetadataUrl(url) {
   }
 }
 
-export async function discover(url) {
+async function discover(url) {
   const u = checkUrl(url);
   const p = u.pathname.replace(/\/$/, '');
   const head = p.slice(0, p.lastIndexOf('/'));
@@ -158,12 +145,12 @@ async function tokenRequest(tokenEndpoint, form) {
   }
   const payload = await res.json().catch(() => ({}));
   if (res.status !== 200 || !payload?.access_token) {
-    return { error: `HTTP ${res.status} ${payload?.error ?? ''} ${payload?.error_description ?? ''}`.trim() };
+    return { error: redact(`HTTP ${res.status} ${payload?.error ?? ''} ${payload?.error_description ?? ''}`.trim()) };
   }
   return { tokens: payload };
 }
 
-export function openInBrowser(url) {
+function openInBrowser(url) {
   const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'explorer' : 'xdg-open';
   spawn(cmd, [url], { stdio: 'ignore', detached: true }).on('error', () => {}).unref();
 }
@@ -212,59 +199,115 @@ function jwtExp(token) {
   }
 }
 
-export async function getToken({ url, clientId, callbackPort, browser = true, openUrl = openInBrowser, minTtl = 60, force = false, stateDir = STATE_DIR }) {
-  const meta = await discover(url);
+const inflight = new Map();
+
+function fromCache(cache, authFrom, clientId, minTtl) {
+  if (!cache || cache.url !== authFrom || cache.client_id !== clientId || !cache.access_token) return null;
+  return cache.expires_at - now() >= minTtl ? { token: cache.access_token, expiresAt: cache.expires_at, via: 'cache' } : null;
+}
+
+async function obtain(file, s, { browser, openUrl, minTtl, force }) {
+  const cache = force ? null : readCache(file);
+  const hit = fromCache(cache, s.authFrom, s.clientId, minTtl);
+  if (hit) return hit;
+  const usable = cache?.url === s.authFrom && cache.client_id === s.clientId && cache.refresh_token;
+  let meta;
+  let tokenEndpoint = usable ? cache.token_endpoint : undefined;
+  let resource = usable ? cache.resource : undefined;
+  let result = { error: 'not signed in' };
+  let via = 'refresh';
+  if (usable) {
+    if (!tokenEndpoint || !resource) {
+      meta = await discover(s.authFrom);
+      ({ tokenEndpoint, resource } = meta);
+    }
+    checkUrl(tokenEndpoint, 'token endpoint');
+    result = await tokenRequest(tokenEndpoint, { grant_type: 'refresh_token', refresh_token: cache.refresh_token, client_id: s.clientId, resource });
+  }
+  if (!result.tokens) {
+    if (!browser) throw new LoginError('sign-in', `${s.name}: ${result.error}; run eval-kit login --server ${s.name}`);
+    meta ??= await discover(s.authFrom);
+    ({ tokenEndpoint, resource } = meta);
+    const { code, verifier, redirectUri } = await browserCode(meta, s.clientId, s.callbackPort, openUrl);
+    result = await tokenRequest(tokenEndpoint, { grant_type: 'authorization_code', code, redirect_uri: redirectUri, client_id: s.clientId, code_verifier: verifier, resource });
+    if (!result.tokens) throw new LoginError('token', `code redemption failed: ${result.error}`);
+    via = 'browser';
+  }
+  const t = result.tokens;
+  const record = {
+    url: s.authFrom, client_id: s.clientId, resource, token_endpoint: tokenEndpoint, access_token: t.access_token,
+    refresh_token: t.refresh_token ?? (via === 'refresh' ? cache.refresh_token : null),
+    expires_at: t.expires_in ? now() + Number(t.expires_in) : (jwtExp(t.access_token) ?? now()),
+  };
+  writeCache(file, record);
+  return { token: record.access_token, expiresAt: record.expires_at, via };
+}
+
+export async function getToken(server, { browser = true, openUrl = openInBrowser, minTtl = 60, force = false, stateDir = STATE_DIR } = {}) {
+  const s = { ...server, name: server.name ?? 'default', authFrom: server.authFrom || server.url };
+  checkUrl(s.authFrom, `${s.name} url`);
+  const file = statePath(s.authFrom, s.clientId, stateDir);
+  if (!force) {
+    const hit = fromCache(readCache(file), s.authFrom, s.clientId, minTtl);
+    if (hit) return hit;
+    const pending = inflight.get(file);
+    if (pending) {
+      const r = await pending.catch(() => null);
+      if (r && r.expiresAt - now() >= minTtl) return { ...r, via: 'cache' };
+    }
+  }
   fs.mkdirSync(stateDir, { recursive: true, mode: 0o700 });
   fs.chmodSync(stateDir, 0o700);
-  const file = statePath(url, clientId, stateDir);
-  return withLock(file, async () => {
-    const now = () => Math.floor(Date.now() / 1000);
-    const cache = force ? null : readCache(file);
-    if (cache?.resource === meta.resource && cache.access_token && cache.expires_at - now() >= minTtl) {
-      return { accessToken: cache.access_token, expiresAt: cache.expires_at, via: 'cache' };
-    }
-    let result = { error: 'no cached sign-in' };
-    let via = 'refresh';
-    if (cache?.refresh_token) {
-      result = await tokenRequest(meta.tokenEndpoint, { grant_type: 'refresh_token', refresh_token: cache.refresh_token, client_id: clientId, resource: meta.resource });
-    }
-    if (!result.tokens) {
-      if (!browser) throw new LoginError('refresh', `${result.error}; sign in again with eval-kit login`);
-      const { code, verifier, redirectUri } = await browserCode(meta, clientId, callbackPort, openUrl);
-      result = await tokenRequest(meta.tokenEndpoint, { grant_type: 'authorization_code', code, redirect_uri: redirectUri, client_id: clientId, code_verifier: verifier, resource: meta.resource });
-      if (!result.tokens) throw new LoginError('token', `code redemption failed: ${result.error}`);
-      via = 'browser';
-    }
-    const t = result.tokens;
-    const record = {
-      url, client_id: clientId, resource: meta.resource, access_token: t.access_token,
-      refresh_token: t.refresh_token ?? (via === 'refresh' ? cache.refresh_token : null),
-      expires_at: t.expires_in ? now() + Number(t.expires_in) : (jwtExp(t.access_token) ?? now()),
-    };
-    writeCache(file, record);
-    return { accessToken: record.access_token, expiresAt: record.expires_at, via };
-  });
+  const p = withLock(file, () => obtain(file, s, { browser, openUrl, minTtl, force }));
+  inflight.set(file, p);
+  p.catch(() => {}).finally(() => inflight.get(file) === p && inflight.delete(file));
+  return p;
 }
 
-export function logout(url, clientId, stateDir = STATE_DIR) {
-  fs.rmSync(statePath(url, clientId, stateDir), { force: true });
+export function logout(server, stateDir = STATE_DIR) {
+  fs.rmSync(statePath(server.authFrom || server.url, server.clientId, stateDir), { force: true });
 }
 
-export async function loginMain(args) {
-  const s = loadSuite();
-  if (!s.url) throw new Error('suite.json has no MCP url');
+export function logoutAll(stateDir = STATE_DIR) {
+  if (!fs.existsSync(stateDir)) return 0;
+  const files = fs.readdirSync(stateDir).filter((f) => STATE_FILE.test(f));
+  for (const f of files) fs.rmSync(path.join(stateDir, f), { force: true });
+  return files.length;
+}
+
+export function pickServers(servers, args) {
+  const at = args.indexOf('--server');
+  if (at < 0) return servers;
+  const name = args[at + 1];
+  const hit = servers.filter((s) => s.name === name);
+  if (!hit.length) throw new LoginError('usage', `no server ${name ?? '(missing)'}; servers: ${servers.map((s) => s.name).join(', ') || 'none'}`);
+  return hit;
+}
+
+export async function loginMain(args, { dir } = {}) {
+  requireSuiteDir(dir);
+  const s = loadSuite(dir);
+  const stateDir = suitePaths(s.dir).state;
+  if (args.includes('--logout') && args.includes('--all')) {
+    console.log(`signed out of every server (${logoutAll(stateDir)} files removed)`);
+    return 0;
+  }
+  if (!s.servers.length) throw new LoginError('usage', 'suite.json has no MCP servers');
+  const servers = pickServers(s.servers, args);
   if (args.includes('--logout')) {
-    logout(s.authFrom, s.clientId);
-    console.log('signed out');
+    for (const server of servers) logout(server, stateDir);
+    console.log(`signed out of ${servers.map((x) => x.name).join(', ')}`);
     return 0;
   }
-  try {
-    const r = await getToken({ url: s.authFrom, clientId: s.clientId, callbackPort: s.callbackPort,
-      force: args.includes('--force'), openUrl: args.includes('--no-browser') ? null : openInBrowser });
-    console.log(`signed in via ${r.via}; token expires in ${r.expiresAt - Math.floor(Date.now() / 1000)} s`);
-    return 0;
-  } catch (e) {
-    console.error(e.message);
-    return 3;
+  let failed = 0;
+  for (const server of servers) {
+    try {
+      const r = await getToken(server, { force: args.includes('--force'), openUrl: args.includes('--no-browser') ? null : openInBrowser, stateDir });
+      console.log(`${server.name}: signed in via ${r.via}; token expires in ${r.expiresAt - now()} s`);
+    } catch (e) {
+      failed += 1;
+      console.error(`${server.name}: ${redact(e.message)}`);
+    }
   }
+  return failed ? 3 : 0;
 }

@@ -1,39 +1,35 @@
-import { loadApiProvider } from 'promptfoo';
-
-const RAW_LIMIT = process.env.EVAL_BUDGET_USD;
-const LIMIT = RAW_LIMIT === undefined || RAW_LIMIT === '' ? 2 : Number(RAW_LIMIT);
-if (!Number.isFinite(LIMIT) || LIMIT < 0) throw new Error(`EVAL_BUDGET_USD must be a non-negative number, got ${RAW_LIMIT}`);
-let spent = 0;
-process.on('exit', () => console.error(`spent $${spent.toFixed(3)} of $${LIMIT} (agent and judge)`));
+import { add, exhausted, limit, refuse } from './budget.js';
 
 export default class CappedProvider {
-  constructor(options) {
+  constructor(options = {}) {
     this.options = options;
     this.label = options.label;
+    this.config = options.config ?? {};
+    this.handlesOwnRetries = true;
+    if (!this.config.target) throw new Error('capped.js needs config.target');
+    limit();
   }
 
   id() {
-    return this.options.label ?? 'capped';
+    return this.label ?? this.options.label ?? 'capped';
   }
 
   target() {
-    const { target, judge, ...config } = this.options.config;
+    const { target, judge, ...config } = this.config;
     const { env } = this.options;
-    this.loading ??= loadApiProvider(target, { env, options: { config, env } }).catch((e) => {
-      this.loading = undefined;
-      throw e;
-    });
+    this.loading ??= import('promptfoo')
+      .then(({ loadApiProvider }) => loadApiProvider(target, { env, basePath: config.basePath, options: { config, env } }))
+      .catch((e) => {
+        this.loading = undefined;
+        throw e;
+      });
     return this.loading;
   }
 
   async callApi(prompt, context, callOptions) {
-    if (spent >= LIMIT) {
-      const error = `eval budget $${LIMIT} reached ($${spent.toFixed(3)} spent)`;
-      if (this.options.config.judge) throw new Error(error);
-      return { error };
-    }
+    if (!this.config.judge && exhausted()) return { error: refuse() };
     const response = await (await this.target()).callApi(prompt, context, callOptions);
-    spent += response.cost ?? 0;
+    add(response?.cost);
     return response;
   }
 

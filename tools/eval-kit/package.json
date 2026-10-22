@@ -1,18 +1,49 @@
 {
   "name": "@wso2/eval-kit",
-  "version": "0.1.1",
-  "description": "Safe promptfoo glue for agent evals: MCP sign-in, runner, compare and pin, tools diff, cost cap",
+  "version": "0.2.0-rc.1",
+  "description": "Safe promptfoo glue for agent evals: MCP sign-in, runner, compare and pin, tools diff, judge, cost cap",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "git+https://github.com/wso2/agent-skills.git", "directory": "tools/eval-kit" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wso2/agent-skills.git",
+    "directory": "tools/eval-kit"
+  },
   "type": "module",
-  "engines": { "node": ">=22.22.0" },
-  "bin": { "eval-kit": "bin/eval-kit.mjs" },
-  "files": ["bin", "src", "lib", "test"],
+  "engines": {
+    "node": ">=22.22.0"
+  },
+  "bin": {
+    "eval-kit": "bin/eval-kit.mjs"
+  },
+  "exports": {
+    "./login": {
+      "types": "./src/login.d.mts",
+      "default": "./src/login.mjs"
+    },
+    "./suite": {
+      "types": "./src/suite.d.mts",
+      "default": "./src/suite.mjs"
+    },
+    "./compare": {
+      "types": "./src/compare.d.mts",
+      "default": "./src/compare.mjs"
+    },
+    "./lib/*": "./lib/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "bin",
+    "src",
+    "lib"
+  ],
   "scripts": {
     "test": "node --test"
   },
   "peerDependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.283",
+    "promptfoo": "0.124.1"
+  },
+  "devDependencies": {
     "promptfoo": "0.124.1"
   }
 }

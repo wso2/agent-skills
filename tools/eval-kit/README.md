@@ -43,7 +43,7 @@ The kit takes the suite from the current directory and keeps its data there: `.s
 | `budgetUsd` | per-run cost cap; `--budget` and `EVAL_BUDGET_USD` override it; default 2 |
 | `gitScope` | path whose git head and dirty state go into `meta.json` |
 
-Names, ports and env prefixes must be unique, and every URL must be https, or http on a local host. Other keys are kept for the suite's own code. `suite.local.json` is merged key by key; its `servers` merge by name. The legacy single-server form (`server`, `env`, `clientId`, `callbackPort`, `url`, `authFrom` at the top level) still works, and only then do `MCP_URL` and `MCP_AUTH_FROM` override it.
+Names, ports and env prefixes must be unique, and every URL must be https, or http on a local host. Other keys are kept for the suite's own code. `suite.local.json` is merged key by key; its `servers` merge by name. The legacy single-server form (`server`, `env`, `clientId`, `callbackPort`, `url`, `authFrom` at the top level) still works. In a suite with exactly one server, `MCP_URL` and `MCP_AUTH_FROM` override its `url` and `authFrom`; with more servers they are refused, so set URLs in `suite.local.json`.
 
 ## Install
 

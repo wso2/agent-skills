@@ -212,3 +212,42 @@ node tools/sync-fixtures.js --all              # every skill that has evals/
   makes a stubbed CLI's shared state file safe; `-j 2` is a good default.
 - **Cost.** Agent-SDK evals are multi-turn and graded — each run bills the API.
   Run them on changed skills, not on every save.
+
+## Evaluating an MCP server
+
+An MCP server's own repo can hold a suite that runs an agent against the real
+server, limited to that server's tools.
+[`tools/eval-kit`](./tools/eval-kit/README.md) (`@wso2/eval-kit`) is the shared
+glue: OAuth sign-in to one or more servers, a runner with telemetry, sharing,
+`.env` loading and retries off, a PASS/FAIL/UNKNOWN judge, labelled run history,
+comparison against a pinned baseline, `tools/list` snapshots and a cost cap. The
+suite keeps only what is specific to the server:
+
+```text
+<repo>/<path>/mcp-evals/
+  package.json          # @wso2/eval-kit from its release tarball, promptfoo and the agent SDK pinned
+  suite.json            # servers (name, env prefix, OAuth client, callback port, url) and run settings
+  suite.local.json      # optional local overrides, git-ignored
+  promptfooconfig.yaml  # the agent provider, limited to mcp__<server>__*
+  tests/<case>.yaml
+```
+
+- `npm run eval` signs in (browser the first time, then the cached or refreshed
+  token), runs each case 3 times, passes a case at 2 of 3 (or `"pass": "all"`)
+  and compares with the baseline. `--label`, `--note` and `--budget` are kit
+  flags; a suite's own `flags` become `EVAL_*` variables for its provider.
+- `npm run pin -- <label|latest>` makes a good run the baseline; after a change
+  to the server, `eval-kit tools --diff` shows the changed tool fields and
+  `npm run compare` gives a per-case verdict. Runs live in
+  `results/<evalId>/` with a `meta.json` (servers, tool hashes, partial,
+  tainted and errored flags, budget, git state).
+- Grade with `lib/judge.js:verdict` against the tool results or the provider's
+  `metadata.truth`, not data typed into the rubric, so cases survive data
+  changes; UNKNOWN shows as `2/3 1?` and never counts as a pass.
+- Exit codes: 0 ok, 1 failing or WORSE, 2 usage, 3 preflight, 4 errored,
+  partial or tainted.
+- Install the kit from a release (`eval-kit-v<version>`) so the lockfile pins
+  its hash.
+
+`eval-kit compare`, `pin` and the cost cap (`lib/capped.js`) work for skill suites
+too: without a `suite.json`, `eval-kit eval` skips the sign-in.

@@ -14,6 +14,9 @@ test('kit and suite flags are taken out of the promptfoo args', () => {
   assert.deepEqual(flagEnv(suiteFlags, { overlay: 'dir', 'allow-writes': 'yes' }), { EVAL_OVERLAY: 'dir', EVAL_ALLOW_WRITES: 'yes' });
   assert.throws(() => parseRunArgs(['--label', '1bad'], suiteFlags), /label 1bad/);
   assert.throws(() => parseRunArgs(['--label'], suiteFlags), /needs a value/);
+  for (const word of ['baseline', 'latest', 'previous', 'Baseline']) assert.throws(() => parseRunArgs(['--label', word], suiteFlags), /is reserved/);
+  assert.throws(() => parseRunArgs(['--label=eval-abc'], suiteFlags), /looks like an eval id/);
+  assert.equal(parseRunArgs(['--label', 'upstream'], suiteFlags).kit.label, 'upstream');
   assert.throws(() => parseRunArgs(['--budget=-1'], suiteFlags), /non-negative/);
   assert.deepEqual(parseRunArgs(['--overlay', 'x'], {}).rest, ['--overlay', 'x']);
 });

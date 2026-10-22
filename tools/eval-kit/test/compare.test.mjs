@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { compare, compareRuns, formatCompare, passes, passesCase, resolveRef, summarize } from '../src/compare.mjs';
+import { compare, compareRuns, formatCompare, passes, passesCase, resolveRef, summarize, toolPath } from '../src/compare.mjs';
 import { pin } from '../src/results.mjs';
 
 function exp(id, outcomes, { model = 'm', judge = 'j', prompt = 'List my agents.', cost = 0.05, turns = 2, tools = ['list_agents'], description = 'list-agents', tokens, cacheRead = 0 } = {}) {
@@ -81,6 +81,11 @@ test('agent cost, turns and calls are flagged', () => {
   assert.match(line(r), /calls\/run list_agents 1\.0->1\.0 list_projects 0\.0->1\.0/);
   assert.match(line(r), /tools list_agents -> list_projects > list_agents/);
   assert.match(formatCompare(r), /0 up, 0 down, 0 within noise; errors 0; agent cost \+160%/);
+});
+
+test('a tool path collapses repeated calls', () => {
+  assert.equal(toolPath(['list_projects', 'list_integrations', 'list_integrations', 'list_integrations', 'get_project', 'list_integrations']), 'list_projects > list_integrations x3 > get_project > list_integrations');
+  assert.equal(toolPath([]), '(none)');
 });
 
 test('a prompt-cache shift shows (cache) instead of !', () => {

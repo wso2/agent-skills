@@ -17,6 +17,15 @@ const median = (xs) => {
 };
 const avg = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : undefined);
 const short = (name) => String(name).split('__').pop();
+
+export function toolPath(names) {
+  const runs = [];
+  for (const n of names) {
+    if (runs.at(-1)?.[0] === n) runs.at(-1)[1] += 1;
+    else runs.push([n, 1]);
+  }
+  return runs.map(([n, k]) => (k > 1 ? `${n} x${k}` : n)).join(' > ') || '(none)';
+}
 const modelOf = (p) => (typeof p === 'string' ? p : p?.config?.model ?? p?.id);
 const components = (r) => r.gradingResult?.componentResults ?? [];
 export const isUnknown = (r) => components(r).some((c) => c.metadata?.verdict === 'UNKNOWN');
@@ -51,7 +60,7 @@ export function summarize(exp) {
     c.costs.push(r.response?.cost ?? r.cost ?? 0);
     const calls = meta.toolCalls ?? [];
     for (const t of calls) c.callCounts[short(t.name)] = (c.callCounts[short(t.name)] ?? 0) + 1;
-    c.tools.add(calls.map((t) => short(t.name)).join(' > ') || '(none)');
+    c.tools.add(toolPath(calls.map((t) => short(t.name))));
     const tu = r.response?.tokenUsage;
     if (tu?.prompt > 0) {
       c.promptTokens.push(tu.prompt);

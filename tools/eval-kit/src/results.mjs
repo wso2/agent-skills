@@ -4,6 +4,14 @@ import { RESULTS_DIR } from './suite.mjs';
 
 export const EVAL_ID = /^eval-[\w:.-]+$/;
 export const LABEL = /^[A-Za-z][A-Za-z0-9._-]{0,63}$/;
+export const RESERVED_LABELS = ['latest', 'baseline', 'previous'];
+
+export function labelError(label) {
+  if (!LABEL.test(label)) return `label ${label}: start with a letter; then letters, digits, '.', '_' and '-' (64 at most)`;
+  if (RESERVED_LABELS.includes(label.toLowerCase())) return `label ${label} is reserved (${RESERVED_LABELS.join(', ')})`;
+  if (EVAL_ID.test(label)) return `label ${label} looks like an eval id`;
+  return null;
+}
 const STAMP = /(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})/;
 
 export class RefError extends Error {}

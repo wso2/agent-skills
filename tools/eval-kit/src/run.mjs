@@ -6,7 +6,7 @@ import { caseLine, compareRuns, formatCompare, isBudgetStop, passesCase, summari
 import { getToken } from './login.mjs';
 import { promptfoo, promptfooEnv } from './promptfoo.mjs';
 import { redact } from './redact.mjs';
-import { baselineId, EVAL_ID, LABEL, readJson, resolveRef } from './results.mjs';
+import { baselineId, EVAL_ID, labelError, readJson, resolveRef } from './results.mjs';
 import { loadSuite, parseBudget, requireSuiteDir, suitePaths } from './suite.mjs';
 import { hashTools, listTools, writeSnapshot } from './tools.mjs';
 
@@ -47,7 +47,8 @@ export function parseRunArgs(args, suiteFlags = {}) {
     else if (Object.hasOwn(suiteFlags, name)) kit.flags[name] = next() ?? suiteFlags[name].value ?? '1';
     else rest.push(arg);
   }
-  if (kit.label !== undefined && !LABEL.test(kit.label)) throw new UsageError(`label ${kit.label}: start with a letter; then letters, digits, '.', '_' and '-' (64 at most)`);
+  const bad = kit.label === undefined ? null : labelError(kit.label);
+  if (bad) throw new UsageError(bad);
   return { kit, rest };
 }
 

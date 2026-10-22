@@ -81,6 +81,7 @@ defaultTest:
 ```
 
 - `lib/judge.js:verdict` is a `javascript` assertion that answers PASS, FAIL or UNKNOWN, with `config: { rubric, evidence: 'truth' | 'toolResults', subject, timeoutS }`. `truth` reads `metadata.truth` from the provider; `toolResults` (default) reads the MCP tool calls. It asks the test's judge provider with a JSON-schema `output_format`, and returns `metadata: { verdict, judgeCostUsd, judgeModel }`. A provider error, a timeout, no verdict or evidence over 200,000 characters makes the row an ERROR, never a verdict. Use it instead of `llm-rubric`, which cannot say UNKNOWN.
+- promptfoo resolves `file://module.js:name` as `(module.default ?? module).name`, so it cannot load a named export from a module that also has a default export. Keep assertion and test functions referenced by name in a module without a default export, as `lib/judge.js` is.
 - `lib/asserts.js` has `calledAnyOf` and `replyWithToolResults` for `llm-rubric` suites.
 - `lib/budget.js` holds the run's spend (`spent()`, `limit()`, `exhausted()`, `add()`); `lib/capped.js` uses it.
 - Code that runs inside promptfoo can sign in itself: `getToken(server, { browser: false, stateDir })` from `@wso2/eval-kit/login` returns `{ token, expiresAt }` from the cache, refreshing when needed, or throws "run eval-kit login". `loadSuite(dir)` is in `@wso2/eval-kit/suite`; `compareRuns(a, b, { resultsDir })` and `resolveRef` are in `@wso2/eval-kit/compare`.
@@ -96,7 +97,7 @@ defaultTest:
 - `eval-kit doctor`: node, promptfoo and SDK versions, git-ignores, each server's sign-in and `tools/list`.
 - `eval-kit view`: promptfoo's viewer on 127.0.0.1. `eval-kit promptfoo <args>`: any other promptfoo command, same environment.
 
-A ref is an eval id, a label (the latest run with it), `latest` or `baseline`.
+A ref is an eval id, a label (the latest run with it), `latest` or `baseline`. A label starts with a letter, has at most 64 letters, digits, `.`, `_` and `-`, and cannot be `latest`, `baseline`, `previous` (any case) or look like an eval id.
 
 ## Results
 
@@ -112,6 +113,7 @@ A ref is an eval id, a label (the latest run with it), `latest` or `baseline`.
 - Errors (`k/n+Ee`) in cases both runs have make it INCONCLUSIVE.
 - A different agent or judge model, case content, run count or server URL makes it NOT COMPARABLE.
 - Turns are flagged `!` at a median change of 2, agent cost per run at 25%, unless the prompt-cache hit rate moved over 20 points, which shows `(cache)`.
+- A case's tool paths collapse repeated calls (`list_projects > list_integrations x7`).
 - It also reports tool changes per server, tainted and partial runs, calls per tool per run and the total agent cost change.
 
 ## Exit codes

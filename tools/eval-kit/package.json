@@ -1,6 +1,6 @@
 {
   "name": "@wso2/eval-kit",
-  "version": "0.2.0-rc.1",
+  "version": "0.2.0",
   "description": "Safe promptfoo glue for agent evals: MCP sign-in, runner, compare and pin, tools diff, judge, cost cap",
   "license": "Apache-2.0",
   "repository": {

@@ -23,12 +23,13 @@ import { nodeArgs, promptfooEnv } from '../src/promptfoo.mjs';
 
 test('the promptfoo env is an allow-list with .env, the scheduler and telemetry off', () => {
   const source = { PATH: '/bin', HOME: '/h', ANTHROPIC_API_KEY: 'sk-ant-x', NODE_OPTIONS: '--require /tmp/x.js', AWS_SECRET_ACCESS_KEY: 's', EVAL_BUDGET_USD: '3' };
-  const env = promptfooEnv({ EVAL_KIT_RUN_DIR: '/r', DOTENV_PATH: '/home/me/.env', PROMPTFOO_DISABLE_ADAPTIVE_SCHEDULER: '0' }, { dir: '/suite', source });
+  const env = promptfooEnv({ EVAL_KIT_RUN_DIR: '/r', EVAL_KIT_SUITE_DIR: '/elsewhere', DOTENV_PATH: '/home/me/.env', PROMPTFOO_DISABLE_ADAPTIVE_SCHEDULER: '0' }, { dir: '/suite', source });
   assert.equal(env.DOTENV_PATH, os.devNull);
   assert.equal(env.PROMPTFOO_DISABLE_ADAPTIVE_SCHEDULER, '1');
   assert.equal(env.PROMPTFOO_DISABLE_TELEMETRY, '1');
   assert.equal(env.PROMPTFOO_CONFIG_DIR, '/suite/.promptfoo');
   assert.equal(env.EVAL_KIT_RUN_DIR, '/r');
+  assert.equal(env.EVAL_KIT_SUITE_DIR, '/suite');
   assert.equal(env.EVAL_BUDGET_USD, '3');
   for (const k of ['ANTHROPIC_API_KEY', 'NODE_OPTIONS', 'AWS_SECRET_ACCESS_KEY']) assert.equal(env[k], undefined);
 });

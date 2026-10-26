@@ -21,7 +21,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { loadSuite, SuiteError } from '../src/suite.mjs';
+import { loadSuite, SuiteError, suitePaths } from '../src/suite.mjs';
 
 function suite(json, local) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'suite-test-'));
@@ -60,6 +60,9 @@ test('servers[] is validated', () => {
   bad([{ ...ok, clientId: '' }], /clientId/);
   bad([{ ...ok, url: 'http://example.com/mcp' }], /use https/);
   bad([{ ...ok, authFrom: 'http://example.com/mcp' }], /authFrom: use https/);
+  bad([{ ...ok, authServer: 'http://example.com/idp' }], /authServer: use https/);
+  bad([{ ...ok, authServer: '' }], /authServer must be a URL/);
+  bad([{ ...ok, authServer: 7 }], /authServer must be a URL/);
   bad([ok, { ...ok, callbackPort: 1 }], /duplicate server name/);
   bad([ok, { ...ok, name: 'other' }], /duplicate server port/);
   assert.throws(() => loadSuite(suite({ ...legacy, servers: [ok] }), {}), SuiteError);
@@ -97,6 +100,15 @@ test('a legacy suite.local.json overrides the single server', () => {
   assert.equal(s.servers[0].origin, 'suite.local.json');
 });
 
+test('authServer is optional per server, and suite.local.json can override it', () => {
+  const idp = { ...two.servers[0], authServer: 'https://idp.example/oauth2/token' };
+  assert.equal(loadSuite(suite({ servers: [idp] }), {}).servers[0].authServer, 'https://idp.example/oauth2/token');
+  assert.equal(loadSuite(suite(two), {}).servers[0].authServer, undefined);
+  const local = loadSuite(suite({ servers: [idp] }, { servers: [{ name: idp.name, authServer: 'http://localhost:8090/oauth2/token' }] }), {});
+  assert.equal(local.servers[0].authServer, 'http://localhost:8090/oauth2/token');
+  assert.equal(loadSuite(suite({ ...legacy, authServer: 'https://idp.example' }), {}).servers[0].authServer, 'https://idp.example');
+});
+
 test('MCP_URL and MCP_AUTH_FROM apply only with a single server', () => {
   const s = loadSuite(suite(legacy), { MCP_URL: 'https://x.example/mcp', MCP_AUTH_FROM: 'https://auth.example/mcp' });
   assert.equal(s.servers[0].url, 'https://x.example/mcp');
@@ -104,4 +116,23 @@ test('MCP_URL and MCP_AUTH_FROM apply only with a single server', () => {
   assert.equal(s.servers[0].origin, 'MCP_URL');
   assert.throws(() => loadSuite(suite(two), { MCP_URL: 'https://x.example/mcp' }), /exactly one server/);
   assert.throws(() => loadSuite(suite(legacy), { MCP_URL: 'http://evil.example/mcp' }), /use https/);
+});
+
+test('stateDir defaults to .state, resolves from the suite dir and stays inside gitScope, else inside the suite', () => {
+  const dir = suite(two);
+  assert.equal(loadSuite(dir, {}).stateDir, '.state');
+  assert.equal(suitePaths(dir).state, path.join(dir, '.state'));
+  const s = loadSuite(suite({ ...two, gitScope: '../..', stateDir: '../../.state' }), {});
+  assert.equal(suitePaths(s.dir, s.stateDir).state, path.resolve(s.dir, '../../.state'));
+  assert.equal(loadSuite(suite({ ...two, gitScope: '..' }, { stateDir: '../shared' }), {}).stateDir, '../shared');
+  assert.equal(loadSuite(suite({ ...two, stateDir: 'tokens/state' }), {}).stateDir, 'tokens/state');
+  const bad = (json, re) => assert.throws(() => loadSuite(suite({ ...two, ...json }), {}), re);
+  bad({ stateDir: '' }, /stateDir must be a relative path/);
+  bad({ stateDir: 7 }, /stateDir must be a relative path/);
+  bad({ stateDir: path.join(os.tmpdir(), 'state') }, /stateDir must be a relative path/);
+  bad({ gitScope: '..', stateDir: '../../.state' }, /stateDir \.\.\/\.\.\/\.state must be inside gitScope \.\./);
+  bad({ gitScope: '..', stateDir: '..' }, /must be inside gitScope/);
+  for (const stateDir of ['../../..', '..', '.', '../shared', 'a/../../b']) bad({ stateDir }, /must be inside the suite folder when gitScope is not set/);
+  assert.throws(() => loadSuite(suite(two, { stateDir: '../shared' }), {}), /must be inside the suite folder/);
+  assert.throws(() => loadSuite(suite({ ...two, gitScope: '..' }, { stateDir: '../../x' }), {}), /must be inside gitScope/);
 });

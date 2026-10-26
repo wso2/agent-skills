@@ -29,6 +29,7 @@ export function promptfooEnv(extra = {}, { dir = SUITE_DIR, source = process.env
   return {
     ...env,
     ...extra,
+    EVAL_KIT_SUITE_DIR: path.resolve(dir),
     PROMPTFOO_CONFIG_DIR: suitePaths(dir).promptfoo,
     PROMPTFOO_DISABLE_TELEMETRY: '1',
     PROMPTFOO_DISABLE_UPDATE: '1',

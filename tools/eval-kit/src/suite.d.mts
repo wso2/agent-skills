@@ -23,6 +23,7 @@ export interface SuiteServer {
   callbackPort: number;
   url: string;
   authFrom: string;
+  authServer?: string;
   origin: 'suite.json' | 'suite.local.json' | 'MCP_URL';
 }
 
@@ -38,6 +39,7 @@ export interface Suite {
   pass: '2of3' | 'all';
   budgetUsd?: number;
   gitScope?: string;
+  stateDir: string;
   origins: Record<string, 'suite.json' | 'suite.local.json'>;
   dir: string;
   [key: string]: unknown;
@@ -45,4 +47,4 @@ export interface Suite {
 
 export class SuiteError extends Error {}
 export function loadSuite(dir?: string, env?: Record<string, string | undefined>): Suite;
-export function suitePaths(dir?: string): { dir: string; results: string; promptfoo: string; state: string };
+export function suitePaths(dir?: string, stateDir?: string): { dir: string; results: string; promptfoo: string; state: string };

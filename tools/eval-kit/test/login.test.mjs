@@ -122,6 +122,19 @@ test('signs in with PKCE, caches owner-only, then reuses and refreshes', async (
   assert.deepEqual(fs.readdirSync(stateDir).filter((f) => f.endsWith('.tmp') || f.endsWith('.lock')), []);
 });
 
+test('a planted temp-file link is replaced, not followed or changed', async () => {
+  const stateDir = tmp();
+  const s = await srv();
+  const target = path.join(tmp(), 'victim');
+  fs.writeFileSync(target, 'keep', { mode: 0o644 });
+  fs.mkdirSync(stateDir, { recursive: true, mode: 0o700 });
+  fs.symlinkSync(target, `${statePath(s.url, s.clientId, stateDir)}.${process.pid}.tmp`);
+  assert.equal((await getToken(s, { openUrl: browser, stateDir })).via, 'browser');
+  assert.equal(fs.readFileSync(target, 'utf8'), 'keep');
+  assert.equal(fs.statSync(target).mode & 0o777, 0o644);
+  assert.ok(fs.lstatSync(statePath(s.url, s.clientId, stateDir)).isFile());
+});
+
 test('a cache hit makes no HTTP call', async () => {
   const stateDir = tmp();
   const s = await srv();
@@ -191,4 +204,64 @@ test('only https or local http URLs', async () => {
     checkUrl(ok);
   }
   await assert.rejects(getToken({ url: 'http://example.com/mcp', clientId: 'x', callbackPort: 1 }, { stateDir: tmp() }), LoginError);
+});
+
+test('authServer: a matching server signs in, and the cache is reused only for it', async () => {
+  const stateDir = tmp();
+  const s = await srv();
+  assert.equal((await getToken(s, { openUrl: browser, stateDir, authServer: `${base}/idp/` })).via, 'browser');
+  assert.equal(JSON.parse(fs.readFileSync(statePath(s.url, s.clientId, stateDir), 'utf8')).auth_server, `${base}/idp`);
+  hits.length = 0;
+  assert.equal((await getToken(s, { browser: false, stateDir, authServer: `${base}/idp` })).via, 'cache');
+  assert.deepEqual(hits, []);
+});
+
+test('authServer: a different server is refused before any call to it, and no token leaks', async () => {
+  const s = await srv();
+  for (const authServer of [`${base}/idp/x`, `${base}/id`, base, 'http://localhost:1/idp']) {
+    hits.length = 0;
+    const err = await getToken(s, { openUrl: browser, stateDir: tmp(), authServer }).catch((e) => e);
+    assert.ok(err instanceof LoginError, authServer);
+    assert.match(err.message, /resource metadata: authorization server .* is not the expected/);
+    assert.ok(!hits.some((h) => h.includes('/idp/')), hits.join());
+  }
+  const stateDir = tmp();
+  seed(stateDir, s, { auth_server: 'https://other.example', access_token: 'cached-access', refresh_token: 'stale-refresh', token_endpoint: `${base}/idp/token`, expires_at: 0 });
+  const err = await getToken(s, { openUrl: browser, stateDir, authServer: 'https://other.example' }).catch((e) => e);
+  assert.match(err.message, /is not the expected https:\/\/other\.example$/);
+  assert.ok(!/cached-access|stale-refresh/.test(err.message));
+});
+
+test('authServer: a cache from another or an unknown server is not reused', async () => {
+  const s = await srv();
+  for (const auth_server of ['https://other.example', undefined]) {
+    const stateDir = tmp();
+    seed(stateDir, s, { auth_server, access_token: 'cached', refresh_token: 'refresh-1', token_endpoint: `${base}/idp/token`, expires_at: Math.floor(Date.now() / 1000) + 3600 });
+    hits.length = 0;
+    await assert.rejects(getToken(s, { browser: false, stateDir, authServer: `${base}/idp` }), /not signed in; run eval-kit login/);
+    assert.deepEqual(hits, []);
+  }
+});
+
+test('authServer: the server\'s own authServer applies when the option is not given, and the option wins', async () => {
+  const stateDir = tmp();
+  const s = await srv();
+  seed(stateDir, s, { auth_server: `${base}/idp`, access_token: 'cached', expires_at: Math.floor(Date.now() / 1000) + 3600 });
+  const other = { ...s, authServer: 'https://other.example' };
+  await assert.rejects(getToken(other, { browser: false, stateDir }), /not signed in; run eval-kit login/);
+  assert.equal((await getToken(other, { browser: false, stateDir, authServer: `${base}/idp/` })).token, 'cached');
+  assert.equal((await getToken({ ...s, authServer: `${base}/idp` }, { browser: false, stateDir })).token, 'cached');
+  const err = await getToken(other, { openUrl: browser, stateDir: tmp() }).catch((e) => e);
+  assert.match(err.message, /is not the expected https:\/\/other\.example$/);
+  assert.deepEqual(hits.filter((h) => h.includes('/idp/')), []);
+});
+
+test('authServer: without it, the cached auth server is ignored; it must be https or local', async () => {
+  const stateDir = tmp();
+  const s = await srv();
+  seed(stateDir, s, { auth_server: 'https://other.example', access_token: 'cached', expires_at: Math.floor(Date.now() / 1000) + 3600 });
+  assert.equal((await getToken(s, { browser: false, stateDir })).token, 'cached');
+  hits.length = 0;
+  await assert.rejects(getToken(s, { stateDir: tmp(), authServer: 'http://example.com/idp' }), /authServer: use https/);
+  assert.deepEqual(hits, []);
 });

@@ -24,11 +24,11 @@ export const SUITE_DIR = process.cwd();
 export const RESULTS_DIR = path.join(SUITE_DIR, 'results');
 export const STATE_DIR = path.join(SUITE_DIR, '.state');
 
-export const suitePaths = (dir = SUITE_DIR) => ({
+export const suitePaths = (dir = SUITE_DIR, stateDir = '.state') => ({
   dir,
   results: path.join(dir, 'results'),
   promptfoo: path.join(dir, '.promptfoo'),
-  state: path.join(dir, '.state'),
+  state: path.resolve(dir, stateDir),
 });
 
 const SUITE_FILE = 'suite.json';
@@ -40,7 +40,7 @@ const FLAG_NAME = /^[a-z][a-z0-9-]*$/;
 const FLAG_ENV = /^EVAL_[A-Z0-9_]+$/;
 const RESERVED_FLAG_ENV = /^(EVAL_KIT_|EVAL_BUDGET_USD$)/;
 const KIT_FLAGS = new Set(['label', 'note', 'budget', 'no-compare', 'filter-failing', 'repeat', 'output', 'config', 'description', 'help']);
-const LEGACY = ['server', 'env', 'clientId', 'callbackPort', 'url', 'authFrom'];
+const LEGACY = ['server', 'env', 'clientId', 'callbackPort', 'url', 'authFrom', 'authServer'];
 const PASS_RULES = new Set(['2of3', 'all']);
 
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -90,6 +90,10 @@ function validateServers(servers) {
     if (typeof s.url !== 'string' || !s.url) throw new SuiteError(`${at}: url is required`);
     checkUrl(s.url, `${at} url`);
     checkUrl(s.authFrom, `${at} authFrom`);
+    if (s.authServer !== undefined) {
+      if (typeof s.authServer !== 'string' || !s.authServer) throw new SuiteError(`${at}: authServer must be a URL`);
+      checkUrl(s.authServer, `${at} authServer`);
+    }
     for (const [k, v] of [['name', s.name], ['port', s.callbackPort], ['env', s.env]]) {
       if (v === undefined) continue;
       if (seen[k].has(v)) throw new SuiteError(`duplicate server ${k}: ${v}`);
@@ -118,6 +122,21 @@ function validateConditions(conditions) {
     if (typeof c !== 'string' || !CONDITION.test(c)) throw new SuiteError(`condition ${JSON.stringify(c)} must match ${CONDITION}`);
   }
   return conditions;
+}
+
+function inside(root, target) {
+  const rel = path.relative(root, target);
+  return rel !== '' && rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel);
+}
+
+function validateStateDir(stateDir, gitScope, dir) {
+  if (typeof stateDir !== 'string' || !stateDir || path.isAbsolute(stateDir)) throw new SuiteError('stateDir must be a relative path');
+  const state = path.resolve(dir, stateDir);
+  if (gitScope === undefined) {
+    if (!inside(path.resolve(dir), state)) throw new SuiteError(`stateDir ${stateDir} must be inside the suite folder when gitScope is not set`);
+  } else if (!inside(path.resolve(dir, gitScope), state)) {
+    throw new SuiteError(`stateDir ${stateDir} must be inside gitScope ${gitScope}`);
+  }
 }
 
 export function parseBudget(raw, what) {
@@ -159,14 +178,15 @@ export function loadSuite(dir = SUITE_DIR, env = process.env) {
   servers = servers.map((s) => ({ ...s, authFrom: s.authFrom || s.url }));
   validateServers(servers);
 
-  const { conditions = [], flags = {}, pass = '2of3', budgetUsd, gitScope, ...rest } = merged;
+  const { conditions = [], flags = {}, pass = '2of3', budgetUsd, gitScope, stateDir = '.state', ...rest } = merged;
   delete rest.servers;
   validateConditions(conditions);
   validateFlags(flags);
   if (!PASS_RULES.has(pass)) throw new SuiteError(`pass must be "2of3" or "all", got ${pass}`);
   if (budgetUsd !== undefined) parseBudget(budgetUsd, 'budgetUsd');
   if (gitScope !== undefined && (typeof gitScope !== 'string' || !gitScope)) throw new SuiteError('gitScope must be a path');
-  return { ...rest, servers, conditions, flags, pass, budgetUsd, gitScope, origins, dir };
+  validateStateDir(stateDir, gitScope, dir);
+  return { ...rest, servers, conditions, flags, pass, budgetUsd, gitScope, stateDir, origins, dir };
 }
 
 export function requireSuiteDir(dir = SUITE_DIR) {

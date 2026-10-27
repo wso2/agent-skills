@@ -129,7 +129,7 @@ async function snapshot(server, stateDir, minTtl) {
 export async function runEval(args, { dir } = {}) {
   requireSuiteDir(dir);
   const s = loadSuite(dir);
-  const p = suitePaths(s.dir);
+  const p = suitePaths(s.dir, s.stateDir);
   let parsed;
   try {
     parsed = parseRunArgs(args, s.flags);

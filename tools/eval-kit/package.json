@@ -1,6 +1,6 @@
 {
   "name": "@wso2/eval-kit",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Safe promptfoo glue for agent evals: MCP sign-in, runner, compare and pin, tools diff, judge, cost cap",
   "license": "Apache-2.0",
   "repository": {
@@ -38,10 +38,6 @@
   ],
   "scripts": {
     "test": "node --test"
-  },
-  "peerDependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.3.283",
-    "promptfoo": "0.124.1"
   },
   "devDependencies": {
     "promptfoo": "0.124.1"

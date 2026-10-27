@@ -17,6 +17,7 @@
  */
 
 import { add, exhausted, limit, refuse } from './budget.js';
+import { loadPromptfoo } from './promptfoo.js';
 
 export default class CappedProvider {
   constructor(options = {}) {
@@ -35,7 +36,7 @@ export default class CappedProvider {
   target() {
     const { target, judge, ...config } = this.config;
     const { env } = this.options;
-    this.loading ??= import('promptfoo')
+    this.loading ??= loadPromptfoo()
       .then(({ loadApiProvider }) => loadApiProvider(target, { env, basePath: config.basePath, options: { config, env } }))
       .catch((e) => {
         this.loading = undefined;

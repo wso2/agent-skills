@@ -17,6 +17,7 @@
  */
 
 import { redact } from '../src/redact.mjs';
+import { loadPromptfoo } from './promptfoo.js';
 
 const VERDICTS = ['PASS', 'FAIL', 'UNKNOWN'];
 export const EVIDENCE_MAX_CHARS = 200_000;
@@ -80,7 +81,7 @@ async function judgeProvider(context) {
   const p = context.test?.options?.provider;
   if (!p) throw new Error('judge: set defaultTest.options.provider (or the test\'s options.provider) to the judge');
   if (typeof p.callApi === 'function') return p;
-  const { loadApiProvider } = await import('promptfoo');
+  const { loadApiProvider } = await loadPromptfoo();
   return typeof p === 'string' ? loadApiProvider(p) : loadApiProvider(p.id, { options: p });
 }
 

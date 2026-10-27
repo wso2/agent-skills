@@ -157,7 +157,7 @@ function makeSuite(name, files, suiteJson) {
   fs.symlinkSync(PROMPTFOO, path.join(dir, 'node_modules', 'promptfoo'), 'dir');
   fs.writeFileSync(path.join(dir, '.env'), 'EVAL_DOTENV_LEAK=leaked\n');
   fs.writeFileSync(path.join(dir, 'suite.json'), JSON.stringify(suiteJson));
-  const stateDir = path.join(dir, '.state');
+  const stateDir = path.resolve(dir, suiteJson.stateDir ?? '.state');
   fs.mkdirSync(stateDir, { mode: 0o700 });
   fs.writeFileSync(statePath(mcpUrl, 'fix-client', stateDir), JSON.stringify({
     url: mcpUrl, client_id: 'fix-client', resource: mcpUrl, access_token: TOKEN, refresh_token: null, expires_at: Math.floor(Date.now() / 1000) + 7200,
@@ -197,7 +197,7 @@ before(async () => {
   root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eval-kit-e2e-')));
   fs.mkdirSync(path.join(root, 'home'));
   const server = { name: 'fix', env: 'FIX_MCP', clientId: 'fix-client', callbackPort: 1, url: mcpUrl };
-  suite = makeSuite('suite', FILES, { servers: [server], pass: '2of3', budgetUsd: 5, flags: { mutate: { env: 'EVAL_MUTATE' }, mode: { env: 'EVAL_MODE', value: 'fast' } } });
+  suite = makeSuite('suite', FILES, { servers: [server], pass: '2of3', budgetUsd: 5, gitScope: '..', stateDir: '../suite-state', flags: { mutate: { env: 'EVAL_MUTATE' }, mode: { env: 'EVAL_MODE', value: 'fast' } } });
   legacy = makeSuite('legacy', LEGACY_FILES, { server: 'fix', env: 'FIX_MCP', clientId: 'fix-client', callbackPort: 1, url: mcpUrl });
   kit = kitIn(suite);
 });
@@ -237,6 +237,7 @@ test('e2e: promptfoo runs the kit end to end', { skip, timeout: 300_000 }, async
     }
     assert.ok(!fs.readFileSync(path.join(suite, 'results', base, 'eval.json'), 'utf8').includes(TOKEN));
     assert.ok(!JSON.stringify(meta).includes(TOKEN));
+    assert.ok(!fs.existsSync(path.join(suite, '.state')));
     assert.match(r.out, /unknown-case: 0\/3 3\? FAIL/);
     assert.match(r.out, /pass-case: 3\/3 PASS/);
     assert.equal((await kit('pin', 'base')).code, 0);

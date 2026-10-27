@@ -20,6 +20,7 @@ export interface Server {
   name?: string;
   url: string;
   authFrom?: string;
+  authServer?: string;
   clientId: string;
   callbackPort: number;
 }
@@ -30,6 +31,7 @@ export interface TokenOptions {
   minTtl?: number;
   force?: boolean;
   stateDir?: string;
+  authServer?: string;
 }
 
 export interface Token {

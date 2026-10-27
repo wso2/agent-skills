@@ -33,6 +33,7 @@ const LOCK_STALE_MS = CALLBACK_TIMEOUT_MS + 60_000;
 const STATE_FILE = /^[0-9a-f]{16}\.json(\.lock|\.\d+\.tmp)?$/;
 
 const b64url = (buf) => buf.toString('base64url');
+const issuerKey = (u) => u.href.replace(/\/$/, '');
 const now = () => Math.floor(Date.now() / 1000);
 
 async function getJson(url) {
@@ -60,7 +61,7 @@ async function challengeMetadataUrl(url) {
   }
 }
 
-async function discover(url) {
+async function discover(url, authServer) {
   const u = checkUrl(url);
   const p = u.pathname.replace(/\/$/, '');
   const head = p.slice(0, p.lastIndexOf('/'));
@@ -78,7 +79,8 @@ async function discover(url) {
   const issuer = String(prm.authorization_servers?.[0] ?? '').replace(/\/$/, '');
   const step = 'authorization server metadata';
   if (!issuer) throw new LoginError('resource metadata', 'no authorization_servers listed');
-  checkUrl(issuer, step);
+  const named = issuerKey(checkUrl(issuer, step));
+  if (authServer && named !== authServer) throw new LoginError('resource metadata', `authorization server ${issuer} is not the expected ${authServer}`);
   const as = (await getJson(`${issuer}/.well-known/oauth-authorization-server`)) ?? (await getJson(`${issuer}/.well-known/openid-configuration`));
   if (!as) throw new LoginError(step, `none found under ${issuer}`);
   if (!as.authorization_endpoint || !as.token_endpoint) throw new LoginError(step, 'authorization or token endpoint missing');
@@ -86,7 +88,7 @@ async function discover(url) {
   checkUrl(as.token_endpoint, step);
   if (as.code_challenge_methods_supported && !as.code_challenge_methods_supported.includes('S256')) throw new LoginError(step, 'S256 PKCE not supported');
   const scope = ['openid', ...(prm.scopes_supported ?? []).filter((s) => s !== 'openid')].join(' ');
-  return { resource, authorizationEndpoint: as.authorization_endpoint, tokenEndpoint: as.token_endpoint, scope };
+  return { resource, issuer: named, authorizationEndpoint: as.authorization_endpoint, tokenEndpoint: as.token_endpoint, scope };
 }
 
 export function statePath(url, clientId, stateDir = STATE_DIR) {
@@ -105,8 +107,9 @@ function readCache(file) {
 
 function writeCache(file, data) {
   const tmp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(data), { mode: 0o600 });
-  fs.chmodSync(tmp, 0o600);
+  fs.rmSync(tmp, { force: true });
+  fs.writeFileSync(tmp, JSON.stringify(data), { mode: 0o600, flag: 'wx' });
+  if (fs.lstatSync(tmp).isFile()) fs.chmodSync(tmp, 0o600);
   fs.renameSync(tmp, file);
 }
 
@@ -219,16 +222,18 @@ function jwtExp(token) {
 
 const inflight = new Map();
 
-function fromCache(cache, authFrom, clientId, minTtl) {
-  if (!cache || cache.url !== authFrom || cache.client_id !== clientId || !cache.access_token) return null;
+const sameSignIn = (cache, s) => cache?.url === s.authFrom && cache.client_id === s.clientId && (!s.authServer || cache.auth_server === s.authServer);
+
+function fromCache(cache, s, minTtl) {
+  if (!sameSignIn(cache, s) || !cache.access_token) return null;
   return cache.expires_at - now() >= minTtl ? { token: cache.access_token, expiresAt: cache.expires_at, via: 'cache' } : null;
 }
 
 async function obtain(file, s, { browser, openUrl, minTtl, force }) {
   const cache = force ? null : readCache(file);
-  const hit = fromCache(cache, s.authFrom, s.clientId, minTtl);
+  const hit = fromCache(cache, s, minTtl);
   if (hit) return hit;
-  const usable = cache?.url === s.authFrom && cache.client_id === s.clientId && cache.refresh_token;
+  const usable = sameSignIn(cache, s) && cache.refresh_token;
   let meta;
   let tokenEndpoint = usable ? cache.token_endpoint : undefined;
   let resource = usable ? cache.resource : undefined;
@@ -236,7 +241,7 @@ async function obtain(file, s, { browser, openUrl, minTtl, force }) {
   let via = 'refresh';
   if (usable) {
     if (!tokenEndpoint || !resource) {
-      meta = await discover(s.authFrom);
+      meta = await discover(s.authFrom, s.authServer);
       ({ tokenEndpoint, resource } = meta);
     }
     checkUrl(tokenEndpoint, 'token endpoint');
@@ -244,7 +249,7 @@ async function obtain(file, s, { browser, openUrl, minTtl, force }) {
   }
   if (!result.tokens) {
     if (!browser) throw new LoginError('sign-in', `${s.name}: ${result.error}; run eval-kit login --server ${s.name}`);
-    meta ??= await discover(s.authFrom);
+    meta ??= await discover(s.authFrom, s.authServer);
     ({ tokenEndpoint, resource } = meta);
     const { code, verifier, redirectUri } = await browserCode(meta, s.clientId, s.callbackPort, openUrl);
     result = await tokenRequest(tokenEndpoint, { grant_type: 'authorization_code', code, redirect_uri: redirectUri, client_id: s.clientId, code_verifier: verifier, resource });
@@ -253,7 +258,7 @@ async function obtain(file, s, { browser, openUrl, minTtl, force }) {
   }
   const t = result.tokens;
   const record = {
-    url: s.authFrom, client_id: s.clientId, resource, token_endpoint: tokenEndpoint, access_token: t.access_token,
+    url: s.authFrom, client_id: s.clientId, auth_server: meta?.issuer ?? cache?.auth_server, resource, token_endpoint: tokenEndpoint, access_token: t.access_token,
     refresh_token: t.refresh_token ?? (via === 'refresh' ? cache.refresh_token : null),
     expires_at: t.expires_in ? now() + Number(t.expires_in) : (jwtExp(t.access_token) ?? now()),
   };
@@ -261,21 +266,24 @@ async function obtain(file, s, { browser, openUrl, minTtl, force }) {
   return { token: record.access_token, expiresAt: record.expires_at, via };
 }
 
-export async function getToken(server, { browser = true, openUrl = openInBrowser, minTtl = 60, force = false, stateDir = STATE_DIR } = {}) {
+export async function getToken(server, { browser = true, openUrl = openInBrowser, minTtl = 60, force = false, stateDir = STATE_DIR, authServer } = {}) {
   const s = { ...server, name: server.name ?? 'default', authFrom: server.authFrom || server.url };
   checkUrl(s.authFrom, `${s.name} url`);
+  const want = authServer ?? server.authServer;
+  s.authServer = want == null ? undefined : issuerKey(checkUrl(want, `${s.name} authServer`));
   const file = statePath(s.authFrom, s.clientId, stateDir);
   if (!force) {
-    const hit = fromCache(readCache(file), s.authFrom, s.clientId, minTtl);
+    const hit = fromCache(readCache(file), s, minTtl);
     if (hit) return hit;
     const pending = inflight.get(file);
     if (pending) {
-      const r = await pending.catch(() => null);
-      if (r && r.expiresAt - now() >= minTtl) return { ...r, via: 'cache' };
+      await pending.catch(() => null);
+      const shared = fromCache(readCache(file), s, minTtl);
+      if (shared) return shared;
     }
   }
   fs.mkdirSync(stateDir, { recursive: true, mode: 0o700 });
-  fs.chmodSync(stateDir, 0o700);
+  if (fs.lstatSync(stateDir).isDirectory()) fs.chmodSync(stateDir, 0o700);
   const p = withLock(file, () => obtain(file, s, { browser, openUrl, minTtl, force }));
   inflight.set(file, p);
   p.catch(() => {}).finally(() => inflight.get(file) === p && inflight.delete(file));
@@ -305,7 +313,7 @@ export function pickServers(servers, args) {
 export async function loginMain(args, { dir } = {}) {
   requireSuiteDir(dir);
   const s = loadSuite(dir);
-  const stateDir = suitePaths(s.dir).state;
+  const stateDir = suitePaths(s.dir, s.stateDir).state;
   if (args.includes('--logout') && args.includes('--all')) {
     console.log(`signed out of every server (${logoutAll(stateDir)} files removed)`);
     return 0;

@@ -135,7 +135,7 @@ export function runTools(dir) {
 export async function toolsMain(args, { dir } = {}) {
   requireSuiteDir(dir);
   const s = loadSuite(dir);
-  const p = suitePaths(s.dir);
+  const p = suitePaths(s.dir, s.stateDir);
   if (!s.servers.length) throw new Error('suite.json has no MCP servers');
   const servers = pickServers(s.servers, args);
   const diffAt = args.indexOf('--diff');

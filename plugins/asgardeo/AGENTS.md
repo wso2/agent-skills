@@ -8,7 +8,7 @@
 
 Two mandatory **gates** followed by an **intent router** into six tracks:
 
-- **Gate 1 — a session.** `asg --help` (install the release via `scripts/install-asg-cli.js` if missing), then `asg status`; if not authenticated, the user runs `asg login` (the agent runs it only on the browser path, when asked) and the agent re-verifies.
+- **Gate 1 — a session.** `asg --help` (install it via `scripts/install-asg-cli.js` if missing), then `asg status`; if not authenticated, the user runs `asg login` (the agent runs it only on the browser path, when asked) and the agent re-verifies.
 - **Gate 2 — an approved plan.** Ask the track's questions first (names, URIs, scopes), then present the plan — *what I'll create*, *what changes in your code*, *how you'll know it worked* — and create nothing until the user approves.
 - **Track A — Authenticate an app** — register an SPA/OIDC/mobile app, wire the framework's Asgardeo SDK from the docs quickstart with the real `clientId` and `baseUrl`, create a test user, prove login.
 - **Track B — Authorize an app** — RBAC over API scopes in order: API resource + scopes → authorize the app → role audience → roles carrying the scopes → JWT tokens → enforce by checking the token's `scope` claim.
@@ -36,4 +36,4 @@ Two mandatory **gates** followed by an **intent router** into six tracks:
 - `skills/asgardeo/references/agent-identity.md` — agent credentials, roles and tokens; acting on a user's behalf; SDK calls by language (Track E)
 - `skills/asgardeo/references/mcp-server.md` — MCP server as a resource, the client app shape, protecting the server, the Inspector proof (Track F)
 - `skills/asgardeo/references/management-apis.md` — feature areas with no CLI verb → their REST APIs via `asg api` (Track C)
-- `skills/asgardeo/scripts/install-asg-cli.js` — downloads the pinned `asg-v*` release from wso2/wso2-cli and verifies its checksum
+- `skills/asgardeo/scripts/install-asg-cli.js` — runs the CLI's installer from the `release/asgardeo-cli` branch of wso2/wso2-cli: newest stable `asg-v*` release, checksum-verified

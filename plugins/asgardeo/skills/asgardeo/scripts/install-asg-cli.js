@@ -55,11 +55,36 @@ const IS_WIN = process.platform === 'win32';
 // The oldest asg this skill's commands are written against.
 const MIN_VERSION = '0.5.0';
 
+// findAsg returns the absolute path of the asg a shell would run, looking only
+// in absolute PATH directories other than the current directory. Spawning a bare
+// "asg" would let Windows try the current directory first, so a file named
+// asg.exe in a project being worked on would run here.
+function findAsg() {
+  const cwd = path.resolve(process.cwd());
+  const name = IS_WIN ? 'asg.exe' : 'asg';
+  for (const dir of (process.env.PATH || '').split(path.delimiter)) {
+    if (!dir || !path.isAbsolute(dir)) continue;
+    const resolved = path.resolve(dir);
+    if (resolved === cwd) continue;
+    const candidate = path.join(resolved, name);
+    try {
+      if (!fs.statSync(candidate).isFile()) continue;
+      if (!IS_WIN) fs.accessSync(candidate, fs.constants.X_OK);
+      return candidate;
+    } catch {
+      // Not here, or not executable: keep looking.
+    }
+  }
+  return null;
+}
+
 // installedVersion returns the version the asg on PATH reports, or null when
 // there is none or it cannot say. Builds before 0.5.0 have no --version, so an
 // older install reads as null and is upgraded.
 function installedVersion() {
-  const run = spawnSync('asg', ['--version'], { encoding: 'utf8', timeout: 15_000 });
+  const asg = findAsg();
+  if (!asg) return null;
+  const run = spawnSync(asg, ['--version'], { encoding: 'utf8', timeout: 15_000 });
   if (run.error || run.status !== 0) return null;
   const m = /asg version v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?/.exec(run.stdout || '');
   return m ? { text: m[0].replace('asg version ', ''), core: [+m[1], +m[2], +m[3]], pre: m[4] || '' } : null;

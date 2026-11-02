@@ -8,7 +8,7 @@
 
 Two mandatory **gates** followed by an **intent router** into six tracks:
 
-- **Gate 1 — a session.** `asg --help` (install it via `scripts/install-asg-cli.js` if missing), then `asg status`; if not authenticated, the user runs `asg login` (the agent runs it only on the browser path, when asked) and the agent re-verifies.
+- **Gate 1 — a session.** `asg --version` reports 0.5.0 or newer (install or upgrade it via `scripts/install-asg-cli.js` if not), then `asg status`; if not authenticated, the user runs `asg login` (the agent runs it only on the browser path, when asked) and the agent re-verifies.
 - **Gate 2 — an approved plan.** Ask the track's questions first (names, URIs, scopes), then present the plan — *what I'll create*, *what changes in your code*, *how you'll know it worked* — and create nothing until the user approves.
 - **Track A — Authenticate an app** — register an SPA/OIDC/mobile app, wire the framework's Asgardeo SDK from the docs quickstart with the real `clientId` and `baseUrl`, create a test user, prove login.
 - **Track B — Authorize an app** — RBAC over API scopes in order: API resource + scopes → authorize the app → role audience → roles carrying the scopes → JWT tokens → enforce by checking the token's `scope` claim.

@@ -27,11 +27,14 @@
 // needs no change to this skill, and a person following the release notes and
 // this skill run the same installer.
 //
-// This wrapper only fetches the right script for this platform and runs it. Its
-// output, including the one-line summary, is the installer's own.
+// This wrapper skips the install when the asg on PATH is already MIN_VERSION or
+// newer, the version this skill is written against. Otherwise it fetches the
+// right script for this platform and runs it, which also upgrades an older
+// install. The installer's output, including its one-line summary, is its own.
 //
 // Env, passed straight through to the installer:
-//   ASG_VERSION       a release tag to install instead of the newest, e.g. asg-v0.1.0
+//   ASG_VERSION       a release tag to install instead of the newest, e.g. asg-v0.5.0;
+//                     setting it also skips the version check above
 //   ASG_PRERELEASE    "true" to include release candidates
 //   ASG_INSTALL_DIR   where to put the binary (default ~/.local/bin;
 //                     %LOCALAPPDATA%\Programs\asg on Windows)
@@ -49,6 +52,28 @@ const { spawnSync } = require('node:child_process');
 const DEFAULT_BASE = 'https://raw.githubusercontent.com/wso2/wso2-cli/release/asgardeo-cli/scripts';
 const TIMEOUT_MS = 60_000;
 const IS_WIN = process.platform === 'win32';
+// The oldest asg this skill's commands are written against.
+const MIN_VERSION = '0.5.0';
+
+// installedVersion returns the version the asg on PATH reports, or null when
+// there is none or it cannot say. Builds before 0.5.0 have no --version, so an
+// older install reads as null and is upgraded.
+function installedVersion() {
+  const run = spawnSync('asg', ['--version'], { encoding: 'utf8', timeout: 15_000 });
+  if (run.error || run.status !== 0) return null;
+  const m = /asg version v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?/.exec(run.stdout || '');
+  return m ? { text: m[0].replace('asg version ', ''), core: [+m[1], +m[2], +m[3]], pre: m[4] || '' } : null;
+}
+
+// atLeast reports whether v is MIN_VERSION or newer. A release candidate of
+// MIN_VERSION is older than MIN_VERSION itself.
+function atLeast(v) {
+  const min = MIN_VERSION.split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    if (v.core[i] !== min[i]) return v.core[i] > min[i];
+  }
+  return v.pre === '';
+}
 
 function baseUrl() {
   const override = process.env.ASG_INSTALLER_BASE_URL;
@@ -60,6 +85,14 @@ function baseUrl() {
 }
 
 async function main() {
+  if (!process.env.ASG_VERSION) {
+    const current = installedVersion();
+    if (current && atLeast(current)) {
+      console.log(`asg ${current.text} is already installed (this skill needs ${MIN_VERSION} or newer); nothing to do.`);
+      return;
+    }
+  }
+
   const name = IS_WIN ? 'install.ps1' : 'install.sh';
   const url = `${baseUrl()}/${name}`;
 
@@ -81,6 +114,15 @@ async function main() {
     process.exitCode = run.status ?? 1;
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+
+  // An older asg elsewhere on PATH, such as one copied to /usr/local/bin by
+  // hand, still answers to `asg` in this shell and hides the new install.
+  if (process.exitCode === 0 && !process.env.ASG_INSTALL_DIR) {
+    const current = installedVersion();
+    if (current && !atLeast(current)) {
+      console.log(`Note: \`asg\` on PATH still reports ${current.text}. An older copy earlier on PATH is hiding the new install; remove it, or put the installer's directory first on PATH.`);
+    }
   }
 }
 

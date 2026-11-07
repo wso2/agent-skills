@@ -37,13 +37,13 @@ Load only what the current track points to:
 - `references/mcp-server.md` — MCP server as a resource, the client app shape, protecting the server, the Inspector proof.
 - `references/management-apis.md` — feature areas with no CLI verb → their management REST APIs via `asg api`.
 
-Bundled script: `scripts/install-asg-cli.js` (run with `node <absolute path>`) — downloads and verifies the CLI release.
+Bundled script: `scripts/install-asg-cli.js` (run with `node <absolute path>`) — runs the CLI's own installer from wso2/wso2-cli, which picks the newest stable release and verifies it.
 
 ---
 
 ## Gate 1 — a session (always first)
 
-1. **CLI present?** `asg --help`. If missing, ask: the user downloads it from [the release](https://github.com/wso2/wso2-cli/releases/tag/asg-v0.1.0-rc.1), or you run `node <skill>/scripts/install-asg-cli.js` (downloads the release binary for this platform, verifies its checksum, installs it to `~/.local/bin`, fixes PATH). On `path-update-failed` or `path-not-configured`, tell the user to add the install directory to PATH. On a checksum mismatch, stop and tell the user; never install around it.
+1. **CLI present and recent?** `asg --version` must report 0.5.0 or newer; builds before 0.5.0 have no `--version`, so an error means missing or too old. If so, ask: the user installs it with the one-line command on [the release branch](https://github.com/wso2/wso2-cli/tree/release/asgardeo-cli), or you run `node <skill>/scripts/install-asg-cli.js` (runs the CLI's own installer: the newest stable release for this platform, checksum-verified, into `~/.local/bin`, PATH updated; it upgrades an older install and does nothing when 0.5.0 or newer is already there). If its summary says the directory is not on PATH, or that an older copy is hiding the new one, tell the user what it names. On a checksum mismatch, stop and tell the user; never install around it.
 2. **Authenticated?** `asg status`. If not, read `references/auth.md` and follow it: the user runs `asg login`, in a message of its own, and you re-verify with `asg status` before Gate 2.
 
 ## Gate 2 — an approved plan

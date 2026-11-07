@@ -38,6 +38,7 @@ The kit takes the suite from the current directory and keeps its data there: `.s
 | `servers[].clientId`, `callbackPort` | public OAuth client (PKCE) and its loopback port `http://127.0.0.1:<port>/callback` |
 | `servers[].url`, `authFrom` | MCP server, and the MCP whose OAuth metadata the sign-in follows if not `url` |
 | `servers[].authServer` | optional issuer URL of the expected authorization server. `eval-kit login`, `doctor`, `eval` and `tools` refuse a sign-in from another server and do not reuse a token that it did not issue |
+| `servers[].resource`, `scope` | optional audience (an absolute URI, for example `urn:wso2:cloud`) and space-separated scopes, default `openid`. See [Sign-in to a named resource](#sign-in-to-a-named-resource) |
 | `conditions` | `--conditions=<c>` for promptfoo's node process (TypeScript providers loaded by tsx) |
 | `flags` | `eval-kit eval --<name> [value]` sets `env` (`EVAL_*`) for promptfoo; the value defaults to `value`, else `1` |
 | `pass` | a case passes at `2of3` runs (default) or `all` |
@@ -45,7 +46,24 @@ The kit takes the suite from the current directory and keeps its data there: `.s
 | `gitScope` | path whose git head and dirty state go into `meta.json` |
 | `stateDir` | token folder relative to the suite: inside `gitScope` when set, else inside the suite folder; default `.state` |
 
-Names, ports and env prefixes must be unique, and every URL must be https, or http on a local host. Other keys are kept for the suite's own code. `suite.local.json` is merged key by key; its `servers` merge by name. The legacy single-server form (`server`, `env`, `clientId`, `callbackPort`, `url`, `authFrom`, `authServer` at the top level) still works. In a suite with exactly one server, `MCP_URL` and `MCP_AUTH_FROM` override its `url` and `authFrom`; with more servers they are refused, so set URLs in `suite.local.json`.
+Names, ports and env prefixes must be unique, and every URL must be https, or http on a local host. Other keys are kept for the suite's own code. `suite.local.json` is merged key by key; its `servers` merge by name. The legacy single-server form (`server`, `env`, `clientId`, `callbackPort`, `url`, `authFrom`, `authServer`, `resource`, `scope` at the top level) still works. In a suite with exactly one server, `MCP_URL` and `MCP_AUTH_FROM` override its `url` and `authFrom`; with more servers they are refused, so set URLs in `suite.local.json`.
+
+### Sign-in to a named resource
+
+By default the sign-in reads the MCP server's protected resource metadata (RFC 9728) and asks for a token whose audience is the MCP URL, with the scopes that the metadata lists. When one token must serve more than one API, set `resource`:
+
+```json
+{ "name": "agent-platform", "url": "https://amp.example/mcp", "clientId": "amctl", "callbackPort": 10325,
+  "authServer": "https://idp.example", "resource": "urn:wso2:cloud", "scope": "openid amp:project:read amp:agent:read" }
+```
+
+- `authServer` is then required. The kit does not read the resource metadata; it reads the authorization server metadata from `authServer`.
+- The authorize request, the code redemption and each refresh send that `resource` and `scope` (RFC 8707).
+- The cached token is keyed by `authServer`, `clientId`, `resource` and `scope`, not by the URL. Servers with the same four values share one sign-in, and `eval-kit login --logout --server N` signs out of all of them. A token for another resource or scope is never reused.
+- Servers that share that sign-in may share `callbackPort`; `eval-kit login --force` signs in to it once.
+- `scope` without `resource` is refused. A server without `resource` signs in as before.
+
+`getToken` takes the same fields, and `url` is optional when `resource` is set.
 
 ## Install
 
@@ -88,7 +106,7 @@ defaultTest:
 - promptfoo resolves `file://module.js:name` as `(module.default ?? module).name`, so it cannot load a named export from a module that also has a default export. Keep assertion and test functions referenced by name in a module without a default export, as `lib/judge.js` is.
 - `lib/asserts.js` has `calledAnyOf` and `replyWithToolResults` for `llm-rubric` suites.
 - `lib/budget.js` holds the run's spend (`spent()`, `limit()`, `exhausted()`, `add()`); `lib/capped.js` uses it.
-- Code that runs inside promptfoo can sign in itself: `getToken(server, { browser: false, stateDir })` from `@wso2/eval-kit/login` returns `{ token, expiresAt }` from the cache, refreshing when needed, or throws "run eval-kit login". With `authServer: '<issuer URL>'`, sign-in refuses when the MCP's resource metadata names a different authorization server, and a cached token is reused only if it came from that server. Without the option, `getToken` uses `server.authServer`, so a server from `loadSuite` keeps the check from `suite.json`. `loadSuite(dir)` is in `@wso2/eval-kit/suite`; `compareRuns(a, b, { resultsDir })` and `resolveRef` are in `@wso2/eval-kit/compare`.
+- Code that runs inside promptfoo can sign in itself: `getToken(server, { browser: false, stateDir })` from `@wso2/eval-kit/login` returns `{ token, expiresAt }` from the cache, refreshing when needed, or throws "run eval-kit login". With `resource` on the server, it signs in to that audience (see above). With `authServer: '<issuer URL>'`, sign-in refuses when the MCP's resource metadata names a different authorization server, and a cached token is reused only if it came from that server. Without the option, `getToken` uses `server.authServer`, so a server from `loadSuite` keeps the check from `suite.json`. `loadSuite(dir)` is in `@wso2/eval-kit/suite`; `compareRuns(a, b, { resultsDir })` and `resolveRef` are in `@wso2/eval-kit/compare`.
 
 ## Commands
 
@@ -134,6 +152,7 @@ A ref is an eval id, a label (the latest run with it), `latest` or `baseline`. A
 - MCP, IdP and token URLs, including stored ones, must be https or http on a local host. Token requests never follow redirects.
 - `authServer` must equal the first `authorization_servers` entry of the resource metadata. Both are compared as parsed URLs (scheme and host case, default port) with one trailing slash ignored; the path must match exactly.
 - The `authServer` check pins the authorization server URL that the resource metadata names. eval-kit does not compare the metadata `issuer` (RFC 8414, section 3.3), because ThunderID publishes an issuer that is not a URL.
+- A token for a named `resource` is valid at every API of that resource, and the kit does not check that `url` serves it. Set `url`, `MCP_URL` and `suite.local.json` URLs of such a server only to hosts of that resource.
 - `capped.js` and `judge.js` load only `<suite>/node_modules/promptfoo`, never a copy in a parent folder. The suite is `EVAL_KIT_SUITE_DIR`, which the kit sets for promptfoo, else the current folder. The entry file must be inside the package folder after links are resolved.
 - Budget: no new agent call starts once the run has spent its limit; calls already running may take it over. Judge calls are counted but never refused.
 

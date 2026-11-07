@@ -24,6 +24,8 @@ export interface SuiteServer {
   url: string;
   authFrom: string;
   authServer?: string;
+  resource?: string;
+  scope?: string;
   origin: 'suite.json' | 'suite.local.json' | 'MCP_URL';
 }
 

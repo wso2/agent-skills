@@ -18,7 +18,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { checkUrl } from './url.mjs';
+import { checkResource, checkUrl } from './url.mjs';
 
 export const SUITE_DIR = process.cwd();
 export const RESULTS_DIR = path.join(SUITE_DIR, 'results');
@@ -40,7 +40,7 @@ const FLAG_NAME = /^[a-z][a-z0-9-]*$/;
 const FLAG_ENV = /^EVAL_[A-Z0-9_]+$/;
 const RESERVED_FLAG_ENV = /^(EVAL_KIT_|EVAL_BUDGET_USD$)/;
 const KIT_FLAGS = new Set(['label', 'note', 'budget', 'no-compare', 'filter-failing', 'repeat', 'output', 'config', 'description', 'help']);
-const LEGACY = ['server', 'env', 'clientId', 'callbackPort', 'url', 'authFrom', 'authServer'];
+const LEGACY = ['server', 'env', 'clientId', 'callbackPort', 'url', 'authFrom', 'authServer', 'resource', 'scope'];
 const PASS_RULES = new Set(['2of3', 'all']);
 
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -79,8 +79,11 @@ function mergeServers(base, local, origin) {
   return out;
 }
 
+const sharedSignIn = (s) => (s.resource === undefined ? undefined : JSON.stringify([s.authServer, s.clientId, s.resource, s.scope ?? 'openid']));
+
 function validateServers(servers) {
   const seen = { name: new Set(), port: new Set(), env: new Set() };
+  const ports = new Map();
   for (const s of servers) {
     const at = `server ${s.name ?? '(no name)'}`;
     if (typeof s.name !== 'string' || !NAME.test(s.name)) throw new SuiteError(`${at}: name must match ${NAME}`);
@@ -94,10 +97,14 @@ function validateServers(servers) {
       if (typeof s.authServer !== 'string' || !s.authServer) throw new SuiteError(`${at}: authServer must be a URL`);
       checkUrl(s.authServer, `${at} authServer`);
     }
+    checkResource(s.resource, s.scope, `${at} resource`);
+    if (s.resource !== undefined && s.authServer === undefined) throw new SuiteError(`${at}: resource needs authServer`);
+    const signIn = sharedSignIn(s);
     for (const [k, v] of [['name', s.name], ['port', s.callbackPort], ['env', s.env]]) {
-      if (v === undefined) continue;
+      if (v === undefined || (k === 'port' && signIn !== undefined && ports.get(v) === signIn)) continue;
       if (seen[k].has(v)) throw new SuiteError(`duplicate server ${k}: ${v}`);
       seen[k].add(v);
+      if (k === 'port') ports.set(v, signIn);
     }
   }
 }

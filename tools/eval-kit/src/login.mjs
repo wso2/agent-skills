@@ -23,9 +23,9 @@ import http from 'node:http';
 import path from 'node:path';
 import { redact } from './redact.mjs';
 import { loadSuite, requireSuiteDir, STATE_DIR, suitePaths } from './suite.mjs';
-import { checkUrl, LoginError } from './url.mjs';
+import { checkResource, checkUrl, LoginError } from './url.mjs';
 
-export { checkUrl, LoginError };
+export { checkResource, checkUrl, LoginError };
 
 const TIMEOUT_MS = 30_000;
 const CALLBACK_TIMEOUT_MS = 300_000;
@@ -81,20 +81,35 @@ async function discover(url, authServer) {
   if (!issuer) throw new LoginError('resource metadata', 'no authorization_servers listed');
   const named = issuerKey(checkUrl(issuer, step));
   if (authServer && named !== authServer) throw new LoginError('resource metadata', `authorization server ${issuer} is not the expected ${authServer}`);
+  const scope = ['openid', ...(prm.scopes_supported ?? []).filter((s) => s !== 'openid')].join(' ');
+  return { resource, issuer: named, ...(await serverMetadata(issuer)), scope };
+}
+
+async function serverMetadata(issuer) {
+  const step = 'authorization server metadata';
   const as = (await getJson(`${issuer}/.well-known/oauth-authorization-server`)) ?? (await getJson(`${issuer}/.well-known/openid-configuration`));
   if (!as) throw new LoginError(step, `none found under ${issuer}`);
   if (!as.authorization_endpoint || !as.token_endpoint) throw new LoginError(step, 'authorization or token endpoint missing');
   checkUrl(as.authorization_endpoint, step);
   checkUrl(as.token_endpoint, step);
   if (as.code_challenge_methods_supported && !as.code_challenge_methods_supported.includes('S256')) throw new LoginError(step, 'S256 PKCE not supported');
-  const scope = ['openid', ...(prm.scopes_supported ?? []).filter((s) => s !== 'openid')].join(' ');
-  return { resource, issuer: named, authorizationEndpoint: as.authorization_endpoint, tokenEndpoint: as.token_endpoint, scope };
+  return { authorizationEndpoint: as.authorization_endpoint, tokenEndpoint: as.token_endpoint };
 }
 
-export function statePath(url, clientId, stateDir = STATE_DIR) {
-  const key = createHash('sha256').update(`${url}\n${clientId}`).digest('hex').slice(0, 16);
-  return path.join(stateDir, `${key}.json`);
+async function metadata(s) {
+  if (!s.resource) return discover(s.authFrom, s.authServer);
+  return { resource: s.resource, issuer: s.authServer, ...(await serverMetadata(s.authServer)), scope: s.scope };
 }
+
+const keyPath = (key, stateDir) => path.join(stateDir, `${createHash('sha256').update(key).digest('hex').slice(0, 16)}.json`);
+
+export function statePath(url, clientId, stateDir = STATE_DIR) {
+  return keyPath(`${url}\n${clientId}`, stateDir);
+}
+
+const stateFile = (s, stateDir) => (s.resource
+  ? keyPath(`resource\n${s.authServer}\n${s.clientId}\n${s.resource}\n${s.scope}`, stateDir)
+  : statePath(s.authFrom, s.clientId, stateDir));
 
 function readCache(file) {
   try {
@@ -222,7 +237,10 @@ function jwtExp(token) {
 
 const inflight = new Map();
 
-const sameSignIn = (cache, s) => cache?.url === s.authFrom && cache.client_id === s.clientId && (!s.authServer || cache.auth_server === s.authServer);
+const sameSignIn = (cache, s) => (s.resource
+  ? cache?.client_id === s.clientId && cache.auth_server === s.authServer && cache.resource === s.resource && cache.scope === s.scope
+  : cache?.url === s.authFrom && cache.client_id === s.clientId && (!s.authServer || cache.auth_server === s.authServer));
+const scopeParam = (s) => (s.resource ? { scope: s.scope } : {});
 
 function fromCache(cache, s, minTtl) {
   if (!sameSignIn(cache, s) || !cache.access_token) return null;
@@ -241,24 +259,25 @@ async function obtain(file, s, { browser, openUrl, minTtl, force }) {
   let via = 'refresh';
   if (usable) {
     if (!tokenEndpoint || !resource) {
-      meta = await discover(s.authFrom, s.authServer);
+      meta = await metadata(s);
       ({ tokenEndpoint, resource } = meta);
     }
     checkUrl(tokenEndpoint, 'token endpoint');
-    result = await tokenRequest(tokenEndpoint, { grant_type: 'refresh_token', refresh_token: cache.refresh_token, client_id: s.clientId, resource });
+    result = await tokenRequest(tokenEndpoint, { grant_type: 'refresh_token', refresh_token: cache.refresh_token, client_id: s.clientId, resource, ...scopeParam(s) });
   }
   if (!result.tokens) {
     if (!browser) throw new LoginError('sign-in', `${s.name}: ${result.error}; run eval-kit login --server ${s.name}`);
-    meta ??= await discover(s.authFrom, s.authServer);
+    meta ??= await metadata(s);
     ({ tokenEndpoint, resource } = meta);
     const { code, verifier, redirectUri } = await browserCode(meta, s.clientId, s.callbackPort, openUrl);
-    result = await tokenRequest(tokenEndpoint, { grant_type: 'authorization_code', code, redirect_uri: redirectUri, client_id: s.clientId, code_verifier: verifier, resource });
+    result = await tokenRequest(tokenEndpoint, { grant_type: 'authorization_code', code, redirect_uri: redirectUri, client_id: s.clientId, code_verifier: verifier, resource, ...scopeParam(s) });
     if (!result.tokens) throw new LoginError('token', `code redemption failed: ${result.error}`);
     via = 'browser';
   }
   const t = result.tokens;
   const record = {
-    url: s.authFrom, client_id: s.clientId, auth_server: meta?.issuer ?? cache?.auth_server, resource, token_endpoint: tokenEndpoint, access_token: t.access_token,
+    url: s.resource ? undefined : s.authFrom, client_id: s.clientId, auth_server: meta?.issuer ?? cache?.auth_server, resource, ...scopeParam(s),
+    token_endpoint: tokenEndpoint, access_token: t.access_token,
     refresh_token: t.refresh_token ?? (via === 'refresh' ? cache.refresh_token : null),
     expires_at: t.expires_in ? now() + Number(t.expires_in) : (jwtExp(t.access_token) ?? now()),
   };
@@ -266,12 +285,22 @@ async function obtain(file, s, { browser, openUrl, minTtl, force }) {
   return { token: record.access_token, expiresAt: record.expires_at, via };
 }
 
-export async function getToken(server, { browser = true, openUrl = openInBrowser, minTtl = 60, force = false, stateDir = STATE_DIR, authServer } = {}) {
+function signIn(server, authServer) {
   const s = { ...server, name: server.name ?? 'default', authFrom: server.authFrom || server.url };
-  checkUrl(s.authFrom, `${s.name} url`);
   const want = authServer ?? server.authServer;
+  if (s.resource === undefined && s.scope === undefined) checkUrl(s.authFrom, `${s.name} url`);
+  else {
+    checkResource(s.resource, s.scope, `${s.name} resource`);
+    if (want == null) throw new LoginError(`${s.name} resource`, 'resource needs authServer');
+    s.scope ??= 'openid';
+  }
   s.authServer = want == null ? undefined : issuerKey(checkUrl(want, `${s.name} authServer`));
-  const file = statePath(s.authFrom, s.clientId, stateDir);
+  return s;
+}
+
+export async function getToken(server, { browser = true, openUrl = openInBrowser, minTtl = 60, force = false, stateDir = STATE_DIR, authServer } = {}) {
+  const s = signIn(server, authServer);
+  const file = stateFile(s, stateDir);
   if (!force) {
     const hit = fromCache(readCache(file), s, minTtl);
     if (hit) return hit;
@@ -291,7 +320,8 @@ export async function getToken(server, { browser = true, openUrl = openInBrowser
 }
 
 export function logout(server, stateDir = STATE_DIR) {
-  fs.rmSync(statePath(server.authFrom || server.url, server.clientId, stateDir), { force: true });
+  const file = server.resource === undefined ? statePath(server.authFrom || server.url, server.clientId, stateDir) : stateFile(signIn(server), stateDir);
+  fs.rmSync(file, { force: true });
 }
 
 export function logoutAll(stateDir = STATE_DIR) {
@@ -326,9 +356,13 @@ export async function loginMain(args, { dir } = {}) {
     return 0;
   }
   let failed = 0;
+  const forced = new Set();
   for (const server of servers) {
     try {
-      const r = await getToken(server, { force: args.includes('--force'), openUrl: args.includes('--no-browser') ? null : openInBrowser, stateDir });
+      const file = stateFile(signIn(server), stateDir);
+      const force = args.includes('--force') && !forced.has(file);
+      forced.add(file);
+      const r = await getToken(server, { force, openUrl: args.includes('--no-browser') ? null : openInBrowser, stateDir });
       console.log(`${server.name}: signed in via ${r.via}; token expires in ${r.expiresAt - now()} s`);
     } catch (e) {
       failed += 1;

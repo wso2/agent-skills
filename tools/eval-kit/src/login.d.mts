@@ -16,14 +16,16 @@
  * under the License.
  */
 
-export interface Server {
+interface SignIn {
   name?: string;
-  url: string;
   authFrom?: string;
   authServer?: string;
   clientId: string;
   callbackPort: number;
+  scope?: string;
 }
+
+export type Server = SignIn & ({ url: string; resource?: string } | { url?: string; resource: string });
 
 export interface TokenOptions {
   browser?: boolean;
@@ -46,6 +48,7 @@ export class LoginError extends Error {
 
 export function getToken(server: Server, options?: TokenOptions): Promise<Token>;
 export function checkUrl(url: string, step?: string): URL;
+export function checkResource(resource: string | undefined, scope: string | undefined, step?: string): void;
 export function statePath(url: string, clientId: string, stateDir?: string): string;
 export function logout(server: Server, stateDir?: string): void;
 export function logoutAll(stateDir?: string): number;

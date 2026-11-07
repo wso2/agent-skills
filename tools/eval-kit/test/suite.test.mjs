@@ -63,6 +63,10 @@ test('servers[] is validated', () => {
   bad([{ ...ok, authServer: 'http://example.com/idp' }], /authServer: use https/);
   bad([{ ...ok, authServer: '' }], /authServer must be a URL/);
   bad([{ ...ok, authServer: 7 }], /authServer must be a URL/);
+  bad([{ ...ok, resource: 'urn:wso2:cloud' }], /resource needs authServer/);
+  bad([{ ...ok, scope: 'openid' }], /scope is set but resource is not/);
+  bad([{ ...ok, resource: 'cloud', authServer: 'https://idp.example' }], /absolute URI/);
+  bad([{ ...ok, resource: 'urn:wso2:cloud', authServer: 'https://idp.example', scope: 'openid  x' }], /scope must be/);
   bad([ok, { ...ok, callbackPort: 1 }], /duplicate server name/);
   bad([ok, { ...ok, name: 'other' }], /duplicate server port/);
   assert.throws(() => loadSuite(suite({ ...legacy, servers: [ok] }), {}), SuiteError);
@@ -107,6 +111,18 @@ test('authServer is optional per server, and suite.local.json can override it', 
   const local = loadSuite(suite({ servers: [idp] }, { servers: [{ name: idp.name, authServer: 'http://localhost:8090/oauth2/token' }] }), {});
   assert.equal(local.servers[0].authServer, 'http://localhost:8090/oauth2/token');
   assert.equal(loadSuite(suite({ ...legacy, authServer: 'https://idp.example' }), {}).servers[0].authServer, 'https://idp.example');
+});
+
+test('resource and scope are kept per server and in the legacy form; servers with one resource sign-in share a port', () => {
+  const sign = { resource: 'urn:wso2:cloud', scope: 'openid amp:project:read', authServer: 'https://idp.example' };
+  const [a, b] = loadSuite(suite({ servers: two.servers.map((s) => ({ ...s, ...sign })) }), {}).servers;
+  assert.deepEqual([a.resource, a.scope, b.resource], [sign.resource, sign.scope, sign.resource]);
+  assert.equal(loadSuite(suite({ ...legacy, ...sign }), {}).servers[0].scope, sign.scope);
+  const shared = (over) => two.servers.map((s, i) => ({ ...s, ...sign, clientId: 'amctl', callbackPort: 10325, ...(i && over) }));
+  assert.equal(loadSuite(suite({ servers: shared() }), {}).servers.length, 2);
+  for (const over of [{ scope: 'openid' }, { resource: undefined, scope: undefined, authServer: undefined }]) {
+    assert.throws(() => loadSuite(suite({ servers: shared(over) }), {}), /duplicate server port: 10325/);
+  }
 });
 
 test('MCP_URL and MCP_AUTH_FROM apply only with a single server', () => {

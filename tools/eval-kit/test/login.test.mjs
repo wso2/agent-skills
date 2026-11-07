@@ -23,12 +23,12 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { after, before, beforeEach, test } from 'node:test';
-import { checkUrl, getToken, LoginError, logoutAll, statePath } from '../src/login.mjs';
+import { checkUrl, getToken, LoginError, logout, logoutAll, statePath } from '../src/login.mjs';
 
 let base;
 let server;
 const hits = [];
-const idp = { codes: new Map(), issued: 0, refreshRotates: true, tokenRedirect: false, tokenDelayMs: 0 };
+const idp = { codes: new Map(), issued: 0, refreshRotates: true, tokenRedirect: false, tokenDelayMs: 0, authorize: [], forms: [] };
 
 const json = (res, status, body, headers = {}) => res.writeHead(status, { 'content-type': 'application/json', ...headers }).end(JSON.stringify(body));
 
@@ -48,14 +48,19 @@ before(async () => {
     if (u.pathname === '/idp/authorize') {
       const q = Object.fromEntries(u.searchParams);
       assert.equal(q.code_challenge_method, 'S256');
-      assert.equal(q.scope, 'openid amp:read');
+      idp.authorize.push(q);
+      if (!q.resource.startsWith('urn:')) assert.equal(q.scope, 'openid amp:read');
       idp.codes.set('code-1', q);
       return res.writeHead(302, { location: `${q.redirect_uri}?code=code-1&state=${q.state}` }).end();
     }
     if (u.pathname === '/idp/token') {
       if (idp.tokenRedirect) return res.writeHead(307, { location: `${base}/elsewhere` }).end();
       const f = Object.fromEntries(new URLSearchParams(body));
-      assert.match(f.resource, /\/mcp\d?$/);
+      idp.forms.push(f);
+      if (!f.resource.startsWith('urn:')) {
+        assert.match(f.resource, /\/mcp\d?$/);
+        assert.equal(f.scope, undefined);
+      }
       if (f.grant_type === 'authorization_code') {
         const q = idp.codes.get(f.code);
         if (!q || createHash('sha256').update(f.code_verifier).digest('base64url') !== q.code_challenge || f.redirect_uri !== q.redirect_uri) {
@@ -80,6 +85,8 @@ beforeEach(() => {
   hits.length = 0;
   idp.refreshRotates = true;
   idp.tokenDelayMs = 0;
+  idp.authorize.length = 0;
+  idp.forms.length = 0;
 });
 
 async function freePort() {
@@ -264,4 +271,75 @@ test('authServer: without it, the cached auth server is ignored; it must be http
   hits.length = 0;
   await assert.rejects(getToken(s, { stateDir: tmp(), authServer: 'http://example.com/idp' }), /authServer: use https/);
   assert.deepEqual(hits, []);
+});
+
+const cloud = async (over = {}) => ({ name: 'cloud', url: `${base}/mcp`, clientId: 'amctl', callbackPort: await freePort(),
+  resource: 'urn:wso2:cloud', scope: 'openid amp:project:read', authServer: `${base}/idp`, ...over });
+
+test('resource: signs in at authServer without resource metadata, and sends resource and scope on every token call', async () => {
+  const stateDir = tmp();
+  const s = await cloud();
+  assert.equal((await getToken(s, { openUrl: browser, stateDir })).via, 'browser');
+  assert.deepEqual(hits, ['GET /idp/.well-known/oauth-authorization-server', 'GET /idp/authorize', 'POST /idp/token']);
+  assert.deepEqual([idp.authorize[0].resource, idp.authorize[0].scope], ['urn:wso2:cloud', 'openid amp:project:read']);
+  assert.deepEqual([idp.forms[0].grant_type, idp.forms[0].resource, idp.forms[0].scope], ['authorization_code', 'urn:wso2:cloud', 'openid amp:project:read']);
+  const [file] = fs.readdirSync(stateDir);
+  const record = JSON.parse(fs.readFileSync(path.join(stateDir, file), 'utf8'));
+  assert.deepEqual([record.url, record.resource, record.scope, record.auth_server], [undefined, 'urn:wso2:cloud', 'openid amp:project:read', `${base}/idp`]);
+
+  hits.length = 0;
+  idp.refreshRotates = false;
+  assert.equal((await getToken(s, { minTtl: 7200, browser: false, stateDir })).via, 'refresh');
+  assert.deepEqual(hits, ['POST /idp/token']);
+  assert.deepEqual([idp.forms[1].grant_type, idp.forms[1].resource, idp.forms[1].scope], ['refresh_token', 'urn:wso2:cloud', 'openid amp:project:read']);
+});
+
+test('resource: servers on one resource, client and scope share one sign-in; another scope, resource or server does not', async () => {
+  const stateDir = tmp();
+  const s = await cloud();
+  const first = await getToken(s, { openUrl: browser, stateDir });
+  hits.length = 0;
+  assert.equal((await getToken({ ...s, name: 'other', url: `${base}/mcp2` }, { browser: false, stateDir })).token, first.token);
+  const { url: _, ...noUrl } = s;
+  assert.equal((await getToken(noUrl, { browser: false, stateDir })).token, first.token);
+  assert.deepEqual(hits, []);
+  for (const other of [{ scope: 'openid' }, { resource: 'urn:wso2:other' }, { authServer: `${base}/idp2` }, { clientId: 'x' }, { resource: undefined, scope: undefined }]) {
+    await assert.rejects(getToken({ ...s, ...other }, { browser: false, stateDir }), /not signed in; run eval-kit login/, JSON.stringify(other));
+  }
+  assert.deepEqual(hits, []);
+  logout(s, stateDir);
+  assert.deepEqual(fs.readdirSync(stateDir), []);
+});
+
+test('resource: a cached record for another resource or scope is not reused', async () => {
+  const stateDir = tmp();
+  const s = await cloud();
+  await getToken(s, { openUrl: browser, stateDir });
+  const file = path.join(stateDir, fs.readdirSync(stateDir)[0]);
+  const record = JSON.parse(fs.readFileSync(file, 'utf8'));
+  for (const change of [{ scope: 'openid' }, { resource: 'urn:wso2:other' }, { auth_server: 'https://other.example' }]) {
+    fs.writeFileSync(file, JSON.stringify({ ...record, ...change }));
+    hits.length = 0;
+    await assert.rejects(getToken(s, { browser: false, stateDir }), /not signed in/, JSON.stringify(change));
+    assert.deepEqual(hits, []);
+  }
+});
+
+test('resource: scope defaults to openid', async () => {
+  const { scope: _, ...s } = await cloud();
+  await getToken(s, { openUrl: browser, stateDir: tmp() });
+  assert.equal(idp.authorize[0].scope, 'openid');
+  assert.equal(idp.forms[0].scope, 'openid');
+});
+
+test('resource: needs authServer, a valid resource and scope, and no scope without resource; refused before any call', async () => {
+  const s = await cloud();
+  for (const [bad, re] of [[{ authServer: undefined }, /resource needs authServer/], [{ resource: 'cloud' }, /absolute URI/],
+    [{ resource: 'urn:x#y' }, /absolute URI/], [{ resource: 'urn:x#' }, /absolute URI/], [{ resource: 'urn:a<b>' }, /absolute URI/], [{ scope: 'a\tb' }, /scope must be/], [{ resource: undefined }, /scope is set but resource is not/],
+    [{ authServer: 'http://example.com/idp' }, /authServer: use https/]]) {
+    hits.length = 0;
+    await assert.rejects(getToken({ ...s, ...bad }, { openUrl: browser, stateDir: tmp() }), re);
+    assert.deepEqual(hits, []);
+  }
+  assert.equal((await getToken({ ...s, authServer: undefined }, { openUrl: browser, stateDir: tmp(), authServer: `${base}/idp/` })).via, 'browser');
 });

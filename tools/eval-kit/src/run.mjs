@@ -107,6 +107,7 @@ export function buildMeta({ evalId, kit, suite, servers, flags, budget, git, sta
     servers: Object.fromEntries(servers.map((s) => [s.name, {
       url: s.url,
       ...(s.authFrom && s.authFrom !== s.url && { authFrom: s.authFrom }),
+      ...(s.resource && { resource: s.resource, scope: s.scope ?? 'openid' }),
       origin: s.origin,
       tools: { before: s.before ?? null, after: s.after ?? null },
     }])),
